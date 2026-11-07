@@ -40,6 +40,14 @@ Use it at your own risk. It only writes ordinary settings and never touches firm
 Tested with a realme Buds Wireless 5 ANC (it reports version text `1,2,1.1.0.56`) on Android 11.
 Other realme earbuds may share the protocol, but nothing else has been tested.
 
+## Screenshots
+
+| Light | Dark | Black |
+|:---:|:---:|:---:|
+| <img src="screenshots/light_theme.jpg" width="180" alt="Light theme"> | <img src="screenshots/dark_theme.jpg" width="180" alt="Dark theme"> | <img src="screenshots/black_theme.jpg" width="180" alt="Black theme"> |
+
+More screenshots are in the [`screenshots/`](screenshots/) folder.
+
 ## Permissions
 
 - **Bluetooth connect**: "Nearby devices" on Android 12 and later, to talk to the earbuds.
@@ -213,4 +221,4 @@ observing how the earbuds behave.
 
 ## License
 
-OpenBuds is released under the MIT license (see LICENSE.md); it is an independent project and contains no code or assets from realme.
+OpenBuds is released under the MIT license (see [LICENSE.md](LICENSE.md)); it is an independent project and contains no code or assets from realme.

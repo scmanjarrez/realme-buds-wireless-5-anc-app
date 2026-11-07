@@ -1,0 +1,108 @@
+name: Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          VERSION=$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle.kts 2>/dev/null | head -n1)
+          if [ -z "$VERSION" ]; then
+            VERSION="1.0"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check if release already exists
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Detect signing secrets
+        id: sign
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "signed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "signed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up JDK 25
+        if: steps.check.outputs.exists != 'true'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Set up Gradle
+        if: steps.check.outputs.exists != 'true'
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build signed release APK
+        if: steps.check.outputs.exists != 'true' && steps.sign.outputs.signed == 'true'
+        run: ./gradlew assembleRelease
+
+      - name: Sign release APK
+        if: steps.check.outputs.exists != 'true' && steps.sign.outputs.signed == 'true'
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          KS="$RUNNER_TEMP/release.keystore"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$KS"
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          UNSIGNED="app/build/outputs/apk/release/app-release-unsigned.apk"
+          OUT="OpenBuds-${VERSION}.apk"
+          "$BT/apksigner" sign \
+            --ks "$KS" \
+            --ks-key-alias "$KEY_ALIAS" \
+            --ks-pass env:KEYSTORE_PASSWORD \
+            --key-pass env:KEY_PASSWORD \
+            --out "$OUT" \
+            "$UNSIGNED"
+          rm -f "$KS"
+
+      - name: Build debug APK (no signing secrets)
+        if: steps.check.outputs.exists != 'true' && steps.sign.outputs.signed != 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          ./gradlew assembleDebug
+          cp app/build/outputs/apk/debug/app-debug.apk "OpenBuds-${VERSION}.apk"
+
+      - name: Create GitHub release
+        if: steps.check.outputs.exists != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$TAG" "OpenBuds-${VERSION}.apk" \
+            --title "OpenBuds ${VERSION}" \
+            --generate-notes
