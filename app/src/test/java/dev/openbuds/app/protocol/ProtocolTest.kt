@@ -30,7 +30,7 @@ class ProtocolTest {
     }
 
     @Test
-    fun buildWithDataUpdatesLengthAndDlen() {
+    fun buildWithDataUpdatesFrameLengthAndDataLength() {
         val frame = Protocol.build(0x0106, 0x41, bytes(0x01, 0x02))
         assertArrayEquals(
             bytes(0xaa, 0x09, 0x00, 0x00, 0x06, 0x01, 0x41, 0x02, 0x00, 0x01, 0x02),
@@ -206,23 +206,54 @@ class ProtocolTest {
     }
 
     @Test
-    fun buildAcceptsMaxDataSizeAndLengthByteFits() {
-        val frame = Protocol.build(0x0106, 0x41, ByteArray(248) { 0x11.toByte() })
-        assertEquals(257, frame.size)
-        assertEquals(0xff, frame[1].toInt() and 0xff)
+    fun buildAcceptsMaxDataSizeAndFrameLengthByteFits() {
+        val frame = Protocol.build(0x0106, 0x41, ByteArray(120) { 0x11.toByte() })
+        assertEquals(129, frame.size)
+        assertEquals(0x7f, frame[1].toInt() and 0xff)
         val frames = Protocol.Parser().feed(frame, frame.size)
         assertEquals(1, frames.size)
-        assertEquals(248, frames[0].data.size)
+        assertEquals(120, frames[0].data.size)
     }
 
     @Test
     fun buildRejectsDataLargerThanMaxDataSize() {
         try {
-            Protocol.build(0x0106, 0x41, ByteArray(249))
+            Protocol.build(0x0106, 0x41, ByteArray(121))
             fail("Expected IllegalArgumentException")
         } catch (e: IllegalArgumentException) {
-            assertTrue(e.message.orEmpty().contains("249"))
+            assertTrue(e.message.orEmpty().contains("121"))
         }
+    }
+
+    @Test
+    fun parserDecodesTwoByteFrameLength() {
+        val data = ByteArray(121) { 0x22.toByte() }
+        val raw = bytes(0xaa, 0x80, 0x01, 0x00, 0x00, 0x06, 0x81, 0x05, 0x79, 0x00) + data
+        val frames = Protocol.Parser().feed(raw, raw.size)
+        assertEquals(1, frames.size)
+        assertEquals(0x8106, frames[0].cmd)
+        assertEquals(0x05, frames[0].seq)
+        assertArrayEquals(data, frames[0].data)
+    }
+
+    @Test
+    fun parserWaitsForSecondFrameLengthByte() {
+        val data = ByteArray(121) { 0x22.toByte() }
+        val raw = bytes(0xaa, 0x80, 0x01, 0x00, 0x00, 0x06, 0x81, 0x05, 0x79, 0x00) + data
+        val parser = Protocol.Parser()
+        assertTrue(parser.feed(raw.copyOfRange(0, 2), 2).isEmpty())
+        val frames = parser.feed(raw.copyOfRange(2, raw.size), raw.size - 2)
+        assertEquals(1, frames.size)
+        assertArrayEquals(data, frames[0].data)
+    }
+
+    @Test
+    fun parserDropsStartByteWithInvalidThirdLengthByte() {
+        val raw = bytes(0xaa, 0x80, 0x80) + hex(EXAMPLE_1_BATTERY_QUERY)
+        val frames = Protocol.Parser().feed(raw, raw.size)
+        assertEquals(1, frames.size)
+        assertEquals(0x0106, frames[0].cmd)
+        assertEquals(0x01, frames[0].seq)
     }
 
     private fun hex(text: String): ByteArray =

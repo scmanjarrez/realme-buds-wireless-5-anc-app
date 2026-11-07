@@ -46,8 +46,8 @@ class BudsApiTest {
         val requester =
             FakeRequester(
                 mapOf(
-                    // Battery: status byte 00, level 0x5a = 90.
-                    key(Cmd.QUERY_STATUS) to bytes(0x00, 0x5a),
+                    // Battery: status byte 00, one entry (type 01 left, level 0x5a = 90).
+                    key(Cmd.QUERY_STATUS) to bytes(0x00, 0x01, 0x01, 0x5a),
                     // Firmware: status byte 00, then ASCII version.
                     key(Cmd.QUERY_VERSION) to bytes(0x00) + ascii("1.2.3"),
                     // Noise mode (request 01 01) and button cycle mask (request 02 01).
@@ -195,12 +195,39 @@ class BudsApiTest {
     }
 
     @Test
-    fun readStateTakesLastByteOfBatteryResponse() {
+    fun readStateDecodesBatteryEntry() {
         val requester = FakeRequester(mapOf(key(Cmd.QUERY_STATUS) to bytes(0x00, 0x01, 0x01, 0x5a)))
 
         val state = runBlocking { BudsApi.readState(requester) }
 
         assertEquals(90, state.battery)
+    }
+
+    @Test
+    fun readStateMasksChargingBitInBatteryEntry() {
+        val requester = FakeRequester(mapOf(key(Cmd.QUERY_STATUS) to bytes(0x00, 0x01, 0x01, 0xda)))
+
+        val state = runBlocking { BudsApi.readState(requester) }
+
+        assertEquals(90, state.battery)
+    }
+
+    @Test
+    fun readStateReturnsLowestEarbudBatteryLevel() {
+        val requester = FakeRequester(mapOf(key(Cmd.QUERY_STATUS) to bytes(0x00, 0x02, 0x01, 0x50, 0x02, 0x46)))
+
+        val state = runBlocking { BudsApi.readState(requester) }
+
+        assertEquals(70, state.battery)
+    }
+
+    @Test
+    fun readStateLeavesBatteryNullWhenOnlyCaseIsReported() {
+        val requester = FakeRequester(mapOf(key(Cmd.QUERY_STATUS) to bytes(0x00, 0x01, 0x03, 0x64)))
+
+        val state = runBlocking { BudsApi.readState(requester) }
+
+        assertNull(state.battery)
     }
 
     @Test

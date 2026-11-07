@@ -86,7 +86,7 @@ sealed interface BudsEvent {
     /**
      * Battery level report.
      *
-     * @property level battery level in percent, 0..255 as reported.
+     * @property level lowest earbud level in percent (0..127), charging bit masked; the case entry is ignored.
      */
     data class Battery(
         val level: Int,
@@ -183,6 +183,9 @@ object Events {
     private const val FIT_TEST_SIZE = 4
     private const val INTERACTION_HEADER_SIZE = 5
     private const val BYTE_BITS = 8
+    private const val BATTERY_LEVEL_MASK = 0x7f
+    private const val BATTERY_LEFT = 1
+    private const val BATTERY_RIGHT = 2
 
     /**
      * Decode a 0x0204 notification frame or a 0x0502 find-phone request.
@@ -239,10 +242,33 @@ object Events {
         return out
     }
 
+    /**
+     * Return the lowest earbud battery level from a battery payload.
+     *
+     * The payload is `count` followed by `count` (type, level) pairs. Type 1 is the left earbud and
+     * type 2 the right earbud. Each level is masked with 0x7f, which drops the charging bit. Other
+     * types, such as the case (type 3), are ignored.
+     *
+     * @param payload unsigned bytes that follow the event id, starting at `count`.
+     * @return the minimum earbud level in percent, or null if the payload is empty, `count` is 0, the
+     *   payload is shorter than `1 + 2 * count` bytes, or it has no earbud entry.
+     */
+    fun batteryLevel(payload: List<Int>): Int? {
+        if (payload.isEmpty()) return null
+        val count = payload[0]
+        if (count == 0 || payload.size < COUNT_SIZE + count * PAIR_SIZE) return null
+        return (0 until count)
+            .mapNotNull { i ->
+                val at = COUNT_SIZE + i * PAIR_SIZE
+                val type = payload[at]
+                if (type == BATTERY_LEFT || type == BATTERY_RIGHT) payload[at + 1] and BATTERY_LEVEL_MASK else null
+            }.minOrNull()
+    }
+
     private fun battery(
         id: Int,
         payload: List<Int>,
-    ): BudsEvent = if (payload.isEmpty()) BudsEvent.Unknown(id, payload) else BudsEvent.Battery(payload.last())
+    ): BudsEvent = batteryLevel(payload)?.let { BudsEvent.Battery(it) } ?: BudsEvent.Unknown(id, payload)
 
     private fun state(
         id: Int,

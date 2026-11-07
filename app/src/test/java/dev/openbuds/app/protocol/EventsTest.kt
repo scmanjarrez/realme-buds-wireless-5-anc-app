@@ -37,8 +37,38 @@ class EventsTest {
     }
 
     @Test
-    fun batteryReturnsLevelFromLastPayloadByte() {
-        assertEquals(BudsEvent.Battery(0x55), Events.parse(notify(0x01, 0x00, 0x55)))
+    fun batteryDecodesSingleEarbudLevel() {
+        assertEquals(BudsEvent.Battery(85), Events.parse(notify(0x01, 0x01, 0x01, 0x55)))
+    }
+
+    @Test
+    fun batteryMasksChargingBit() {
+        assertEquals(BudsEvent.Battery(85), Events.parse(notify(0x01, 0x01, 0x01, 0xd5)))
+    }
+
+    @Test
+    fun batteryReturnsMinimumOfEarbudEntries() {
+        assertEquals(BudsEvent.Battery(70), Events.parse(notify(0x01, 0x02, 0x01, 0x50, 0x02, 0x46)))
+    }
+
+    @Test
+    fun batteryIgnoresCaseEntry() {
+        assertEquals(BudsEvent.Battery(70), Events.parse(notify(0x01, 0x02, 0x01, 0x46, 0x03, 0x64)))
+    }
+
+    @Test
+    fun batteryWithOnlyCaseEntryReturnsUnknown() {
+        assertEquals(BudsEvent.Unknown(1, listOf(1, 3, 0x64)), Events.parse(notify(0x01, 0x01, 0x03, 0x64)))
+    }
+
+    @Test
+    fun batteryTruncatedPairsReturnUnknown() {
+        assertEquals(BudsEvent.Unknown(1, listOf(2, 1, 0x50)), Events.parse(notify(0x01, 0x02, 0x01, 0x50)))
+    }
+
+    @Test
+    fun batteryZeroCountReturnsUnknown() {
+        assertEquals(BudsEvent.Unknown(1, listOf(0)), Events.parse(notify(0x01, 0x00)))
     }
 
     @Test

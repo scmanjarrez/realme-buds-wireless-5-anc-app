@@ -50,7 +50,8 @@ class Command(
 /**
  * State read from the earbuds. Fields are null or empty when not readable.
  *
- * @property battery battery level in percent (last byte of the 0x0106 response), or null.
+ * @property battery lowest earbud battery level in percent from 0x0106 (charging bit masked, case
+ *     ignored), or null.
  * @property firmware version text from the 0x0105 response, or null.
  * @property noise current noise-control mode: 01 off, 02 transparency, 04/08/10/20 ANC levels.
  * @property noiseCycle mask of the noise-control button cycle: 01 off, 02 transparency, 08 ANC.
@@ -167,6 +168,21 @@ object BudsApi {
         return d[d.size - 1].toInt() and 0xff
     }
 
+    /**
+     * Returns the battery level from a 0x0106 response payload.
+     *
+     * The first byte is the status. The rest is decoded by [Events.batteryLevel], which takes the
+     * lowest earbud level and ignores the case entry.
+     *
+     * @param d response payload, or null when there is no response.
+     * @return the lowest earbud level (0..127), or null if [d] has no value or cannot be decoded.
+     */
+    private fun batteryOf(d: ByteArray?): Int? {
+        if (d == null || d.size < 2) return null
+        val payload = List(d.size - 1) { d[it + 1].toInt() and 0xff }
+        return Events.batteryLevel(payload) ?: logMalformed(Cmd.QUERY_STATUS)
+    }
+
     /** Logs a missing or malformed response by command id only. */
     private fun logMalformed(cmd: Int): Nothing? {
         Log.w({ "Missing or malformed response to 0x%04x".format(cmd) })
@@ -203,7 +219,8 @@ object BudsApi {
      * @return the state read; fields that could not be read are null or empty.
      */
     suspend fun readState(r: Requester): BudsState {
-        val battery = last(query(r, Cmd.QUERY_STATUS))
+        // 0x0106: status, then count and (type, level) entries. Level is the lowest earbud value.
+        val battery = batteryOf(query(r, Cmd.QUERY_STATUS))
 
         val ver = query(r, Cmd.QUERY_VERSION)
         val firmware =

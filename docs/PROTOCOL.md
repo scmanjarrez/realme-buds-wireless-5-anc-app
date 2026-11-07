@@ -56,58 +56,60 @@ listed below from the Android app in this repository.
 
 ## Frame anatomy
 
-Frame-level offsets, counted from the start of the frame. This table assumes a one-byte `len`
+Frame-level offsets, counted from the start of the frame. This table assumes a one-byte `frameLength`
 (see Length field for the varint rule and the two-byte case):
 
 | offset | size | field | values / notes |
 |--------|------|-------|----------------|
 | 0 | 1 | `aa` start | fixed start marker |
-| 1 | 1 (2 if len > 127) | `len` | varint, see Length field. One-byte len: total frame size - 2. The repository reads one byte only (Known gap) |
+| 1 | 1 (2 if frameLength > 127) | `frameLength` | varint of 1 or 2 bytes: 7 bits per byte, least significant first, bit 7 = another length byte follows [APK]. One-byte value: total frame size - 2. The repository's Parser decodes 1-2 bytes; `build` writes only one byte (data <= 120). See Length field |
 | 2-3 | 2 | header | byte 0 = flags, byte 1 = `00`. `00 00` requests and responses; `08 00` notifications. See Header |
 | 4-5 | 2 | `cmd` | u16 LE |
 | 6 | 1 | `seq` | sequence number |
-| 7-8 | 2 | `dlen` | u16 LE, number of data bytes |
-| 9.. | `dlen` | data | payload |
+| 7-8 | 2 | `dataLength` | u16 LE, number of data bytes |
+| 9.. | `dataLength` | data | payload |
 
-With a two-byte `len` (len > 127) every field from offset 2 on shifts by one: header 3-4, `cmd` 5-6,
-`seq` 7, `dlen` 8-9, data 10.. .
+With a two-byte `frameLength` (frameLength > 127) every field from offset 2 on shifts by one: header 3-4, `cmd` 5-6,
+`seq` 7, `dataLength` 8-9, data 10.. .
+
+Earlier revisions of this document called these fields `len` and `dlen`.
 
 ```text
-+------+------+----------+----------+------+----------+----------------+
-| aa   | len* | header   | cmd      | seq  | dlen     | data           |
-| 1 B  | 1 B  | 2 B      | 2 B LE   | 1 B  | 2 B LE   | dlen bytes     |
-+------+------+----------+----------+------+----------+----------------+
-  0      1      2 - 3      4 - 5      6      7 - 8      9 ...
-  * len is 2 bytes when its value is above 127; every field after it then shifts by one.
++------+--------------+----------+----------+------+------------+----------------+
+| aa   | frameLength* | header   | cmd      | seq  | dataLength | data           |
+| 1 B  | 1 B          | 2 B      | 2 B LE   | 1 B  | 2 B LE     | dataLength     |
++------+--------------+----------+----------+------+------------+----------------+
+  0      1              2 - 3      4 - 5      6      7 - 8        9 ...
+  * frameLength is 2 bytes when its value is above 127; every field after it then shifts by one.
 ```
 
-Fragmented frame (one-byte len), see Fragmentation:
+Fragmented frame (one-byte frameLength), see Fragmentation:
 
 ```text
-+------+------+----------+-------+------------------------+
-| aa   | len* | header   | index | payload (len - 3 B)    |
-| 1 B  | 1 B  | 2 B      | 1 B   |                        |
-+------+------+----------+-------+------------------------+
-  0      1      2 - 3      4       5 ...
++------+--------------+----------+-------+----------------------------+
+| aa   | frameLength* | header   | index | payload (frameLength - 3 B)|
+| 1 B  | 1 B          | 2 B      | 1 B   |                            |
++------+--------------+----------+-------+----------------------------+
+  0      1              2 - 3      4       5 ...
 ```
 
 Rules:
-- `len` vs `dlen`: `len` counts every byte after the length field (header, cmd, seq, dlen and data).
-  For a well-formed single frame with a one-byte `len`, `len` = `dlen` + 7 and the whole frame is
-  `dlen` + 9 bytes. `dlen` counts only the data bytes.
+- `frameLength` vs `dataLength`: `frameLength` counts every byte after the length field (header, cmd, seq, dataLength and data).
+  For a well-formed single frame with a one-byte `frameLength`, `frameLength` = `dataLength` + 7 and the whole frame is
+  `dataLength` + 9 bytes. `dataLength` counts only the data bytes.
 - Response: same `cmd` with bit 15 set (0x8xxx) and the same `seq`. The first data byte is the
   status (00 = OK).
 - Notifications come from the earbuds unsolicited and carry their own `seq`.
 
 ### Length field
 
-- `len` is a varint [APK]: 7 bits per byte, least significant group first, bit 7 = another length
+- `frameLength` is a varint [APK]: 7 bits per byte, least significant group first, bit 7 = another length
   byte follows. Encoder: `OPPOv1Wrapper` `o()` (:320-338). Decoder: `n()` (:305-318).
 - Both sides assume at most two length bytes (`n > 127 ? 2 : 1`, :71 and :136) [APK]. A value of 127
   or less is one byte, identical to a plain byte.
-- `len` counts every byte after the length field, so the total frame size = 1 + (length-field size) + `len`.
-- Single frame: `len` = inner packet size + 2 (the two header bytes), i.e. `dlen` + 7 [APK].
-- Fragment: `len` = payload + 3 (two header bytes + one fragment index byte) [APK].
+- `frameLength` counts every byte after the length field, so the total frame size = 1 + (length-field size) + `frameLength`.
+- Single frame: `frameLength` = inner packet size + 2 (the two header bytes), i.e. `dataLength` + 7 [APK].
+- Fragment: `frameLength` = payload + 3 (two header bytes + one fragment index byte) [APK].
 
 ### Header
 
@@ -128,13 +130,13 @@ Rules:
   wrapper (`CommonWrapper`, `DeviceConnectionImpl` :281-292); not decoded here.
 - A message is a single frame (fragment state 0) when payload <= `o` - j - 3 [APK], where `j` is the
   length-field size (`OPPOv1Wrapper` :231-303). `j` is 1 when `o` <= 129; for larger `o` it depends on
-  the remaining length (exact rule in the source). For `o` = 512 and a one-byte len the formula gives
+  the remaining length (exact rule in the source). For `o` = 512 and a one-byte frameLength the formula gives
   508 payload bytes. The findings give "about 507" for this case; the off-by-one is not resolved.
 - Otherwise every fragment carries `o` - j - 4 payload bytes [APK]. Fragment states: first = 1,
   middle = 2, last = 3 (byte 0 bits 0-1).
 - Each fragment carries a one-byte fragment index after the header; the first fragment's index is 0
   [APK]. The source wording says "fragments after the first" carry the index, but the length rule
-  above (`len` = payload + 3) applies to every fragment, so the first one is treated as carrying it
+  above (`frameLength` = payload + 3) applies to every fragment, so the first one is treated as carrying it
   too [INFERRED]; this is not confirmed on a device.
 - The receive side reassembles the payload and has no size cap: it accepts whatever length the
   varint declares [APK].
@@ -144,32 +146,26 @@ Rules:
 - `seq` (offset 6 in a single frame) is a counter from 0 to 255, kept per device address
   (`PacketFactory.f`) [APK]. Responses echo the request's `seq`.
 
-### Known gap in this repository
+### Repository behaviour
 
-- `Protocol.Parser` reads `len` as one unsigned byte, and `Protocol.build` writes it as one byte and
-  rejects data over 248 bytes (throws `IllegalArgumentException`). A one-byte value is only valid up
-  to 127 under the varint rule, so:
-  - frames the earbuds send with `len` > 127 would be misparsed;
-  - frames this app builds with `len` 128..255 (data 121..248 bytes) would be misread by the earbuds.
-- Real frames the app builds are small (custom EQ is 31 data bytes), so this has no known effect today.
-- Not changed here. A fix (varint decode and encode, build limit 120 data bytes) is proposed as a
-  separate plan.
+- `Protocol.Parser` decodes `frameLength` as a varint of 1 or 2 bytes. A third length byte (bit 7 set on the second) invalidates the frame, and the parser resynchronises.
+- `Protocol.build` writes `frameLength` as one byte and rejects data over 120 bytes (throws `IllegalArgumentException`). A one-byte varint holds 127 = 7 header bytes + 120 data bytes.
+- The 2-byte encode is intentionally not implemented (YAGNI): the largest frame the app builds carries 31 data bytes (custom EQ). It will be added when a frame needs more than 120 data bytes.
 
 ### How the parser reads a stream
 
 Derived from `Protocol.Parser`:
 1. Bytes are discarded until an `aa` byte is found at the front of the buffer.
-2. The parser then waits until `len` + 2 bytes are buffered (the whole frame). This assumes the
-   one-byte `len` the repository uses; see Known gap in this repository.
-3. Frames shorter than 9 bytes are skipped: they are consumed but not returned.
-4. If `dlen` is larger than the frame, the data is clamped to the frame end (the frame's data is
-   shorter than `dlen` says).
+2. The parser reads `frameLength` (one or two bytes, see Length field) and waits until the whole frame is buffered: total = 1 + size of the `frameLength` field + `frameLength`. If the second length byte has bit 7 set (a third length byte, not decoded), the frame is invalid: the parser discards the `aa` byte and resynchronises (see Repository behaviour).
+3. Frames with `frameLength` below 7 are consumed but not returned.
+4. If `dataLength` is larger than the frame, the data is clamped to the frame end (the frame's data is
+   shorter than `dataLength` says).
 5. One socket read can contain several frames, and all complete frames are returned.
 
 ## Frame kinds
 
 **Request.** Sent by the host. Header `00 00`, `cmd` is the command, `seq` is chosen by the host,
-and `data` holds the request payload. A command that takes no request data sends `dlen` 0. Byte
+and `data` holds the request payload. A command that takes no request data sends `dataLength` 0. Byte
 layouts are in Command reference and worked bytes are in Worked examples.
 
 **Response.** Reply to a request: same `cmd` with bit 15 set, same `seq`, header `00 00`. The first
@@ -199,7 +195,7 @@ count from the start of the frame (offset 0 is `aa`), so `data[0]` is at offset 
 Every example below is `constructed`; examples 8 and 9 carry payloads seen in the log. Responses are
 marked `r` (for example 3r).
 
-Consistency: `len` = total frame size - 2, and `dlen` = number of data bytes. The check table at
+Consistency: `frameLength` = total frame size - 2, and `dataLength` = number of data bytes. The check table at
 the end of this section confirms both for every example.
 
 ### 1. Battery query (request, `0x0106`)
@@ -213,14 +209,14 @@ aa 07 00 00 06 01 01 00 00
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 07 | len | 7 (total 9 - 2) |
+| 1 | 07 | frameLength | 7 (total 9 - 2) |
 | 2 | 00 | header lo | request |
 | 3 | 00 | header hi | request |
 | 4 | 06 | cmd lo | 0x0106 (QUERY_STATUS) |
 | 5 | 01 | cmd hi | 0x0106 |
 | 6 | 01 | seq | 1 |
-| 7 | 00 | dlen lo | 0 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 00 | dataLength lo | 0 |
+| 8 | 00 | dataLength hi | 0 |
 
 ### 2. Battery query response (`0x8106`)
 
@@ -233,18 +229,18 @@ aa 0b 00 00 06 81 01 04 00 00 01 01 5a
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 0b | len | 11 (total 13 - 2) |
+| 1 | 0b | frameLength | 11 (total 13 - 2) |
 | 2 | 00 | header lo | response (header not used by parser) |
 | 3 | 00 | header hi | response |
 | 4 | 06 | cmd lo | 0x8106 (response bit 15 set) |
 | 5 | 81 | cmd hi | 0x8106 |
 | 6 | 01 | seq | 1 (echo of request) |
-| 7 | 04 | dlen lo | 4 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 04 | dataLength lo | 4 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 00 | data[0] status | OK |
 | 10 | 01 | data[1] | 0x01 = n, the entry count (1) [APK] |
 | 11 | 01 | data[2] | 0x01 = type, left earbud [APK] |
-| 12 | 5a | data[3] | 0x5a = 90 % battery (last byte = level) |
+| 12 | 5a | data[3] | 0x5a = 90 % battery level |
 
 ### 3. setSwitchFeature: Find my phone on (`0x0403`)
 
@@ -257,14 +253,14 @@ aa 09 00 00 03 04 02 02 00 26 01
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 09 | len | 9 (total 11 - 2) |
+| 1 | 09 | frameLength | 9 (total 11 - 2) |
 | 2 | 00 | header lo | request |
 | 3 | 00 | header hi | request |
 | 4 | 03 | cmd lo | 0x0403 (SET_FEATURE) |
 | 5 | 04 | cmd hi | 0x0403 |
 | 6 | 02 | seq | 2 |
-| 7 | 02 | dlen lo | 2 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 02 | dataLength lo | 2 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 26 | data[0] feature id | 0x26 (Feature.FIND_MY_PHONE) |
 | 10 | 01 | data[1] value | 1 = on [INFERRED, see the 0x0403 request table] |
 
@@ -279,14 +275,14 @@ aa 08 00 00 03 84 02 01 00 00
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 08 | len | 8 (total 10 - 2) |
+| 1 | 08 | frameLength | 8 (total 10 - 2) |
 | 2 | 00 | header lo | response |
 | 3 | 00 | header hi | response |
 | 4 | 03 | cmd lo | 0x8403 |
 | 5 | 84 | cmd hi | 0x8403 |
 | 6 | 02 | seq | 2 |
-| 7 | 01 | dlen lo | 1 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 01 | dataLength lo | 1 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 00 | data[0] status | OK |
 
 ### 4. Noise control: Max (`0x0404`)
@@ -300,14 +296,14 @@ aa 0a 00 00 04 04 03 03 00 01 01 08
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 0a | len | 10 (total 12 - 2) |
+| 1 | 0a | frameLength | 10 (total 12 - 2) |
 | 2 | 00 | header lo | request |
 | 3 | 00 | header hi | request |
 | 4 | 04 | cmd lo | 0x0404 (SET_NOISE) |
 | 5 | 04 | cmd hi | 0x0404 |
 | 6 | 03 | seq | 3 |
-| 7 | 03 | dlen lo | 3 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 03 | dataLength lo | 3 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 01 | data[0] action | 0x01 |
 | 10 | 01 | data[1] type | 0x01 |
 | 11 | 08 | data[2] value | 0x08 = Max (see Command reference, 0x0404) |
@@ -323,14 +319,14 @@ aa 08 00 00 04 84 03 01 00 00
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 08 | len | 8 (total 10 - 2) |
+| 1 | 08 | frameLength | 8 (total 10 - 2) |
 | 2 | 00 | header lo | response |
 | 3 | 00 | header hi | response |
 | 4 | 04 | cmd lo | 0x8404 |
 | 5 | 84 | cmd hi | 0x8404 |
 | 6 | 03 | seq | 3 |
-| 7 | 01 | dlen lo | 1 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 01 | dataLength lo | 1 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 00 | data[0] status | OK |
 
 ### 5. Custom EQ, update (`0x0418`)
@@ -347,14 +343,14 @@ aa 26 00 00 18 04 04 1f 00 02 fa 06 04 07 43 75 73 74 6f 6d 31 06 3e 00 fa fa 00
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 26 | len | 38 (total 40 - 2) |
+| 1 | 26 | frameLength | 38 (total 40 - 2) |
 | 2 | 00 | header lo | request |
 | 3 | 00 | header hi | request |
 | 4 | 18 | cmd lo | 0x0418 (SET_CUSTOM_EQ) |
 | 5 | 04 | cmd hi | 0x0418 |
 | 6 | 04 | seq | 4 |
-| 7 | 1f | dlen lo | 31 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 1f | dataLength lo | 31 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 02 | data[0] op | 2 = update |
 | 10 | fa | data[1] min (i8) | -6 dB |
 | 11 | 06 | data[2] max (i8) | +6 dB |
@@ -400,14 +396,14 @@ aa 0b 08 00 04 02 10 04 00 01 01 01 46
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 0b | len | 11 (total 13 - 2) |
+| 1 | 0b | frameLength | 11 (total 13 - 2) |
 | 2 | 08 | header lo | notification |
 | 3 | 00 | header hi | notification |
 | 4 | 04 | cmd lo | 0x0204 (NOTIFY) |
 | 5 | 02 | cmd hi | 0x0204 |
 | 6 | 10 | seq | 16 |
-| 7 | 04 | dlen lo | 4 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 04 | dataLength lo | 4 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 01 | data[0] event id | 0x01 (EventId.BATTERY) |
 | 10 | 01 | data[1] count n | 1 entry [APK] |
 | 11 | 01 | data[2] type | 1 = left earbud [APK] |
@@ -426,14 +422,14 @@ aa 08 08 00 02 05 20 01 00 05
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 08 | len | 8 (total 10 - 2) |
+| 1 | 08 | frameLength | 8 (total 10 - 2) |
 | 2 | 08 | header lo | notification (not verified; `08 00` is the 0x0204 header [INFERRED]) |
 | 3 | 00 | header hi | notification (not verified; `08 00` is the 0x0204 header [INFERRED]) |
 | 4 | 02 | cmd lo | 0x0502 (FIND_PHONE_REQUEST) |
 | 5 | 05 | cmd hi | 0x0502 |
 | 6 | 20 | seq | 32 |
-| 7 | 01 | dlen lo | 1 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 01 | dataLength lo | 1 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 05 | data[0] action | 5 = ring request (toggle); no Kotlin constant (any action but `FindPhone.STOP` toggles) |
 
 ### 8. Smart ANC mode event (`0x0204`, event `0x03`, 2-byte form)
@@ -448,14 +444,14 @@ aa 0a 08 00 04 02 11 03 00 03 01 20
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 0a | len | 10 (total 12 - 2) |
+| 1 | 0a | frameLength | 10 (total 12 - 2) |
 | 2 | 08 | header lo | notification |
 | 3 | 00 | header hi | notification |
 | 4 | 04 | cmd lo | 0x0204 (NOTIFY) |
 | 5 | 02 | cmd hi | 0x0204 |
 | 6 | 11 | seq | 17 |
-| 7 | 03 | dlen lo | 3 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 03 | dataLength lo | 3 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 03 | data[0] event id | 0x03 (EventId.NOISE) |
 | 10 | 01 | data[1] X | ignored by the app |
 | 11 | 20 | data[2] V | mode 0x20 = smart |
@@ -472,14 +468,14 @@ aa 0b 08 00 04 02 12 04 00 03 04 01 10
 | offset | bytes | field | value |
 |---|---|---|---|
 | 0 | aa | start marker | 0xAA |
-| 1 | 0b | len | 11 (total 13 - 2) |
+| 1 | 0b | frameLength | 11 (total 13 - 2) |
 | 2 | 08 | header lo | notification |
 | 3 | 00 | header hi | notification |
 | 4 | 04 | cmd lo | 0x0204 (NOTIFY) |
 | 5 | 02 | cmd hi | 0x0204 |
 | 6 | 12 | seq | 18 |
-| 7 | 04 | dlen lo | 4 |
-| 8 | 00 | dlen hi | 0 |
+| 7 | 04 | dataLength lo | 4 |
+| 8 | 00 | dataLength hi | 0 |
 | 9 | 03 | data[0] event id | 0x03 (EventId.NOISE) |
 | 10 | 04 | data[1] action A | 4 = Smart ANC resolved level |
 | 11 | 01 | data[2] type T | not read by the app; meaning unknown |
@@ -487,7 +483,7 @@ aa 0b 08 00 04 02 12 04 00 03 04 01 10
 
 ### Check table
 
-| example | total | len byte | total - 2 | dlen | data size | result |
+| example | total | frameLength byte | total - 2 | dataLength | data size | result |
 |---|---|---|---|---|---|---|
 | 1 | 9 | 07 | 7 | 0 | 0 | OK |
 | 2 | 13 | 0b | 11 | 4 | 4 | OK |
@@ -510,7 +506,7 @@ Encodings used by the command and event layouts. Details per command are in Comm
 - `i8`: signed 8-bit value, two's complement. `fa` = -6, `fb` = -5, `06` = +6. The Dynamic audio
   sliders use `fb 05` for -5..+5 (see 0x041b).
 - `u16 LE`: unsigned 16-bit, low byte first. 62 Hz = `3e 00`; 16000 Hz = `80 3e`. The frame `cmd`
-  and `dlen` fields use the same encoding.
+  and `dataLength` fields use the same encoding.
 - `MAC(6)`: six bytes of a Bluetooth address, in wire byte order. In the 0x0112 response the MAC is
   kept in that order (`PairedDevice.mac`); only the display text reverses it (see 0x0112).
 - Bit mask: the noise-control button cycle returned by `0x010c` with request `02 01` (response
@@ -541,7 +537,7 @@ hex example (if any) and notes.
 - **Kind:** query, request and response.
 - **Kotlin:** `Cmd.QUERY_STATUS`, read by `BudsApi.readState`.
 - **Confidence:** confirmed (90 % read from a standalone client on RFCOMM channel 1).
-- **Request:** none (`dlen` 0).
+- **Request:** none (`dataLength` 0).
 
 Response:
 
@@ -562,10 +558,10 @@ Entry (offsets from the start of the entry):
 - **Captured layout:** worked example 2 (`constructed`) has the response `01 01 5a`: n = 1, type = 1
   (left), level = `5a` (90 %). [APK]
 - **Hex example:** Worked examples 1 (request) and 2 (response, 90 %), label `constructed`.
-- **Notes:** `readState` uses only the last byte of the response as the battery level. This is a known
-  gap [APK]: with two entries it reads the last entry's level, and while charging it shows the level
-  plus 128, because bit `0x80` is not masked. A status-only response (no payload byte after the
-  status) gives no value: `readState` keeps battery `null`, not 0.
+- **Notes:** this app takes the lowest level among the earbud entries (types `01` and `02`), with bit `0x80`
+  masked (`level and 0x7f`). The case entry (`03`) is ignored and charging is not shown. A malformed payload
+  (`count` 0, shorter than `count` entries, or no earbud entry) gives no value. A status-only response (no payload
+  byte after the status) also gives no value: `readState` keeps battery `null`, not 0.
 
 #### 0x0105 firmware version text
 - **Purpose:** firmware version as ASCII text.
@@ -800,7 +796,7 @@ Entry:
 - **Kotlin:** not used by this app.
 - **Source:** [APK] (vendor app: PCM.C :111-118, handler PCM.l0 :838-875).
 - **Confidence:** unconfirmed (APK only). The bitmap of this model has not been captured.
-- **Request:** none (`dlen` 0).
+- **Request:** none (`dataLength` 0).
 
 Response:
 
@@ -853,7 +849,7 @@ Bit to commands (bits not listed are unassigned in the code) [APK]:
 - **Kotlin:** not used by this app.
 - **Source:** [APK] (CommandUtil.f :242-259, poll handler PCM.b0 :521-542).
 - **Confidence:** unconfirmed (APK only). Bit polarity is as decompiled, not verified on hardware.
-- **Request:** none (`dlen` 0).
+- **Request:** none (`dataLength` 0).
 
 Response:
 
@@ -1651,11 +1647,10 @@ Vendor app registration and decoding [APK]:
 | 3 | 1 | level, pair 1 | `b & 0x7f` = percent; bit 0x80 = charging [APK]; 70 seen in the log [LOG] |
 | 4 onward | 2 x (n - 1) | pairs 2 to n | same layout as pair 1 |
 
-- **Notes:** The layout is `count, (type, level) * count`. This app reads only the last payload byte as
-  the level (`Events.parse` returns `BudsEvent.Battery(payload.last())`). With two entries it therefore
-  reads the last one, and [INFERRED] while charging it shows the level plus 128, because bit 0x80 is not
-  masked. This is a known gap and is not changed in this document. An empty payload gives
-  `BudsEvent.Unknown`.
+- **Notes:** The payload starts at `count` (data offset 1); the 0x0106 response has a status byte before `count`.
+  This app takes the lowest level among the earbud entries (types `01` and `02`) as `BudsEvent.Battery`, with the
+  charging bit masked (`level and 0x7f`). The case entry (`03`) is ignored and charging is not shown. A payload that
+  is empty, has `count` 0, is shorter than `count` pairs, or has no earbud entry gives `BudsEvent.Unknown`.
 
 ### 0x02 earbud in / out
 - **Status:** never received.
@@ -1900,7 +1895,7 @@ Six flows. Each step is one stated in Command reference or Events.
 sequenceDiagram
     participant Host
     participant Earbuds
-    Host->>Earbuds: 0x0106 seq 1, dlen 0
+    Host->>Earbuds: 0x0106 seq 1, dataLength 0
     Note over Earbuds: response has the same seq
     Earbuds-->>Host: 0x8106 seq 1, status 00, payload
 ```
@@ -2067,11 +2062,12 @@ carries its source label. Nothing here is verified on the device unless it says 
 
 - Smart ANC level: event 0x03 with action 4 is the Smart ANC resolved level. Raw `10` = moderate
   (smart_medium) [APK, LOG]. The `04 01 10` payload is no longer open; the second byte (T) stays unknown.
-- Length field: the outer `len` is a varint, not one byte [APK]. See Frame anatomy. The code gap is listed
-  under Known gaps.
+- Length field: `frameLength` is a varint of 1 or 2 bytes, not one byte [APK]. The repository's Parser decodes
+  both forms; `build` writes one byte (data <= 120). See Frame anatomy and Repository behaviour.
 - Battery payload (event 0x01 and query 0x0106): `count, (type, level) * count`, type `01` left, `02` right,
   `03` case, bit `0x80` = charging [APK]. The two `01` bytes in example 2 and example 6 are count and type,
-  not an unknown marker. The level is still read by this app as the last byte (see Known gaps).
+  not an unknown marker. This app takes the lowest earbud level (types `01` and `02`), masks bit `0x80` and
+  ignores the case entry.
 - Header byte 0 of notifications: bit `0x08` is set by the device [LOG]; bits 0-1 are the fragment state
   [APK]. Before, the byte was listed as unknown.
 - Event 0x05 is game mode: byte 1 = `01` on, any other value off [APK]. This app does not register it.
@@ -2094,18 +2090,9 @@ carries its source label. Nothing here is verified on the device unless it says 
 
 These are gaps in the code of this app. This document does not change the code.
 
-1. Length field: `Protocol.Parser` reads `len` as one unsigned byte, and `Protocol.build` writes one byte and
-   rejects data over 248 bytes. The varint [APK] is one byte only up to 127; above that it takes two
-   bytes. Frames from the earbuds with `len` above 127 would be misparsed. Frames this app builds with
-   `len` 128..255 (data 121..248 bytes) would be misread by the earbuds. No known effect today, because the
-   largest frame this app builds is the custom EQ (31 data bytes). See Frame anatomy, Known gap.
-2. Battery: `BudsApi.readState` and `Events.parse` (event 0x01) use only the last payload byte as the level.
-   The count, the type and the charging bit (`0x80`) are ignored. With two entries the app reads the last
-   one. While charging, the level is shown plus 128, because bit `0x80` is not masked [INFERRED from the
-   layout]. A status-only response leaves the battery as `null`.
-3. Capability bitmap: this app never sends 0x0100. The command groups that this model supports are not
+1. Capability bitmap: this app never sends 0x0100. The command groups that this model supports are not
    known from this app. The bitmap of this model is not captured.
-4. `dlen` larger than the frame: `Protocol.Parser` clamps the data to the frame end and reports no error.
+2. `dataLength` larger than the frame: `Protocol.Parser` clamps the data to the frame end and reports no error.
 
 ### Still open
 

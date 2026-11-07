@@ -218,7 +218,7 @@ object Eq {
  *
  * @property cmd command id; bit 15 is set for responses.
  * @property seq sequence number, echoed back in the response to the same request.
- * @property data payload after the 9-byte header; for a response the first byte is the status.
+ * @property data payload after the 7 bytes that follow the length field; for a response the first byte is the status.
  */
 class Frame(
     val cmd: Int,
@@ -247,13 +247,34 @@ fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
  * See 'Frame anatomy' in docs/PROTOCOL.md for the layout.
  */
 object Protocol {
+    /** Bytes after the frameLength field and before the data: `00 00`, cmd, seq and dataLength. */
+    private const val FIXED_HEADER_SIZE = 7
+
+    /** Offset of the cmd field (u16 LE) from the first byte after the frameLength field. */
+    private const val CMD_OFFSET = 2
+
+    /** Offset of the seq field from the first byte after the frameLength field. */
+    private const val SEQ_OFFSET = 4
+
+    /** Offset of the dataLength field (u16 LE) from the first byte after the frameLength field. */
+    private const val DATA_LENGTH_OFFSET = 5
+
+    /** Continuation bit of a frameLength varint byte: set when another length byte follows. */
+    private const val VARINT_CONTINUE = 0x80
+
+    /** Value bits of a frameLength varint byte (7 bits per byte). */
+    private const val VARINT_VALUE_MASK = 0x7f
+
+    /** Shift of the second frameLength varint byte. */
+    private const val VARINT_SHIFT = 7
+
     /**
      * Largest payload a frame can carry, in bytes.
      *
-     * The len byte counts the 7 header bytes after it plus the data and must fit in one byte, so
-     * the data is at most 255 - 7 = 248 bytes.
+     * The frameLength field is a one-byte varint here, so it holds at most 127. That value covers
+     * the 7 bytes after the field plus the data, so the data is at most 127 - 7 = 120 bytes.
      */
-    private const val MAX_DATA_SIZE = 248
+    private const val MAX_DATA_SIZE = 120
 
     /**
      * Band center frequencies of the custom equalizer, in Hz.
@@ -299,16 +320,18 @@ object Protocol {
     }
 
     /**
-     * Build a frame: `AA`, len, `00 00`, cmd (u16 LE), seq, dlen (u16 LE), data.
+     * Build a frame: `AA`, frameLength, `00 00`, cmd (u16 LE), seq, dataLength (u16 LE), data.
      *
-     * The len byte is the total frame size minus 2, so it does not count the `AA` and len bytes.
-     * dlen is the size of [data].
+     * The frameLength byte is always one byte and counts everything after itself, so it is the
+     * total frame size minus 2 (the `AA` and frameLength bytes). dataLength is the size of [data].
+     * The dataLength high byte is always zero because [data] is at most 120 bytes. The two-byte
+     * frameLength form is never written, although [Parser] accepts it.
      *
      * @param cmd command id, see [Cmd].
      * @param seq sequence number, echoed back in the response.
-     * @param data payload of the command; empty by default, at most 248 bytes.
+     * @param data payload of the command; empty by default, at most 120 bytes.
      * @return the encoded frame.
-     * @throws IllegalArgumentException if [data] is larger than 248 bytes.
+     * @throws IllegalArgumentException if [data] is larger than 120 bytes.
      */
     fun build(
         cmd: Int,
@@ -316,15 +339,15 @@ object Protocol {
         data: ByteArray = ByteArray(0),
     ): ByteArray {
         require(data.size <= MAX_DATA_SIZE) { "Frame data too large: ${data.size} bytes (max $MAX_DATA_SIZE)" }
-        val body = ByteArray(7 + data.size)
+        val body = ByteArray(FIXED_HEADER_SIZE + data.size)
         body[0] = 0
         body[1] = 0
         body[2] = (cmd and 0xff).toByte()
         body[3] = ((cmd shr 8) and 0xff).toByte()
         body[4] = (seq and 0xff).toByte()
         body[5] = (data.size and 0xff).toByte()
-        body[6] = ((data.size shr 8) and 0xff).toByte()
-        data.copyInto(body, 7)
+        body[6] = 0
+        data.copyInto(body, FIXED_HEADER_SIZE)
         val out = ByteArray(2 + body.size)
         out[0] = 0xAA.toByte()
         out[1] = body.size.toByte()
@@ -336,9 +359,12 @@ object Protocol {
      * Incremental frame parser for the socket byte stream.
      *
      * [feed] appends bytes to an internal buffer and returns each frame that is complete. Bytes
-     * before an `AA` start byte are dropped to resync. A frame is complete when len + 2 bytes are
-     * buffered. Frames shorter than the 9-byte header are skipped. The data is cut at the end of
-     * the frame, so a dlen that runs past the frame is ignored.
+     * before an `AA` start byte are dropped to resync. frameLength is a varint of one or two bytes
+     * (7 bits per byte, least significant first, bit 7 set when another byte follows). If the
+     * second length byte also has bit 7 set (a third length byte, not expected), the start byte is
+     * dropped and the parser resyncs. A frame is complete when the length field and frameLength
+     * bytes are buffered. Frames whose frameLength is below 7 are skipped. The data is cut at the
+     * end of the frame, so a dataLength that runs past the frame is ignored.
      */
     class Parser {
         private var buf = ByteArray(0)
@@ -363,14 +389,34 @@ object Protocol {
                     buf = buf.copyOfRange(1, buf.size)
                     continue
                 }
-                val total = (buf[1].toInt() and 0xff) + 2
+                val b1 = buf[1].toInt() and 0xff
+                val lengthSize: Int
+                val frameLength: Int
+                if ((b1 and VARINT_CONTINUE) == 0) {
+                    lengthSize = 1
+                    frameLength = b1
+                } else {
+                    if (buf.size < 3) break
+                    val b2 = buf[2].toInt() and 0xff
+                    if ((b2 and VARINT_CONTINUE) != 0) {
+                        buf = buf.copyOfRange(1, buf.size)
+                        continue
+                    }
+                    lengthSize = 2
+                    frameLength = (b1 and VARINT_VALUE_MASK) or (b2 shl VARINT_SHIFT)
+                }
+                val start = 1 + lengthSize
+                val total = start + frameLength
                 if (buf.size < total) break
-                if (total >= 9) {
-                    val cmd = (buf[4].toInt() and 0xff) or ((buf[5].toInt() and 0xff) shl 8)
-                    val seq = buf[6].toInt() and 0xff
-                    val dlen = (buf[7].toInt() and 0xff) or ((buf[8].toInt() and 0xff) shl 8)
-                    val end = minOf(total, 9 + dlen)
-                    frames.add(Frame(cmd, seq, buf.copyOfRange(9, end)))
+                if (frameLength >= FIXED_HEADER_SIZE) {
+                    val cmdAt = start + CMD_OFFSET
+                    val cmd = (buf[cmdAt].toInt() and 0xff) or ((buf[cmdAt + 1].toInt() and 0xff) shl 8)
+                    val seq = buf[start + SEQ_OFFSET].toInt() and 0xff
+                    val lengthAt = start + DATA_LENGTH_OFFSET
+                    val dataLength = (buf[lengthAt].toInt() and 0xff) or ((buf[lengthAt + 1].toInt() and 0xff) shl 8)
+                    val dataStart = start + FIXED_HEADER_SIZE
+                    val end = minOf(total, dataStart + dataLength)
+                    frames.add(Frame(cmd, seq, buf.copyOfRange(dataStart, end)))
                 }
                 buf = buf.copyOfRange(total, buf.size)
             }
