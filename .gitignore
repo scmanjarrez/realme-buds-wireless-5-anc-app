@@ -1,0 +1,47 @@
+# Gradle and build output
+.gradle/
+build/
+**/build/
+.kotlin/
+.externalNativeBuild/
+.cxx/
+/captures/
+
+# Android Studio: local IDE settings (JDK paths, window state, caches)
+.idea/
+*.iml
+
+# Local SDK path
+local.properties
+
+# Build artifacts and signing keys
+*.apk
+*.aab
+*.apks
+*.ap_
+*.dex
+*.keystore
+*.jks
+
+# Traffic captures and dumps: they contain personal data
+# (phone numbers, names and Bluetooth addresses of your devices)
+*.btsnoop
+btsnoop_hci.log
+bugreport*.zip
+bugreport*.txt
+frida_out*.txt
+rfcomm*.txt
+decoded_aa*.txt
+*.pcap
+*.pcapng
+
+# Logs and heap dumps
+*.log
+*.hprof
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.directory
