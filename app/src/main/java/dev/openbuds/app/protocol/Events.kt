@@ -86,7 +86,8 @@ sealed interface BudsEvent {
     /**
      * Battery level report.
      *
-     * @property level lowest earbud level in percent (0..127), charging bit masked; the case entry is ignored.
+     * @property level the lowest earbud level in percent (0..127) with the charging bit masked;
+     *     the case entry is ignored.
      */
     data class Battery(
         val level: Int,

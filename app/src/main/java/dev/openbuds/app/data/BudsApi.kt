@@ -50,7 +50,7 @@ class Command(
 /**
  * State read from the earbuds. Fields are null or empty when not readable.
  *
- * @property battery lowest earbud battery level in percent from 0x0106 (charging bit masked, case
+ * @property battery the lowest earbud battery level in percent from 0x0106 (charging bit masked, case
  *     ignored), or null.
  * @property firmware version text from the 0x0105 response, or null.
  * @property noise current noise-control mode: 01 off, 02 transparency, 04/08/10/20 ANC levels.

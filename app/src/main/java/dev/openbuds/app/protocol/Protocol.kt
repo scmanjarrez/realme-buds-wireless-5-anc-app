@@ -359,7 +359,7 @@ object Protocol {
      * Incremental frame parser for the socket byte stream.
      *
      * [feed] appends bytes to an internal buffer and returns each frame that is complete. Bytes
-     * before an `AA` start byte are dropped to resync. frameLength is a varint of one or two bytes
+     * before an `AA` start byte are dropped to resync. The frameLength field is a varint of one or two bytes
      * (7 bits per byte, least significant first, bit 7 set when another byte follows). If the
      * second length byte also has bit 7 set (a third length byte, not expected), the start byte is
      * dropped and the parser resyncs. A frame is complete when the length field and frameLength
