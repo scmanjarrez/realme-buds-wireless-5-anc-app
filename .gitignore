@@ -12,8 +12,9 @@ build/
 .cxx/
 /captures/
 
-# Android Studio: local IDE settings (JDK paths, window state, caches)
-.idea/
+# Android Studio: local IDE settings (JDK paths, window state, caches), except the shared spelling dictionary
+.idea/*
+!.idea/dictionaries/
 *.iml
 
 # Local SDK path
