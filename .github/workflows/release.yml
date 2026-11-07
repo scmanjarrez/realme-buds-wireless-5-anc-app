@@ -59,6 +59,10 @@ jobs:
         if: steps.check.outputs.exists != 'true'
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Make gradlew executable
+        if: steps.check.outputs.exists != 'true'
+        run: chmod +x gradlew
+
       - name: Build signed release APK
         if: steps.check.outputs.exists != 'true' && steps.sign.outputs.signed == 'true'
         run: ./gradlew assembleRelease
