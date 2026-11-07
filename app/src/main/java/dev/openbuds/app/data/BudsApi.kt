@@ -8,17 +8,19 @@ import dev.openbuds.app.protocol.Frame
 import dev.openbuds.app.protocol.Protocol
 import dev.openbuds.app.util.Log
 
-/** Sends requests to the earbuds and returns their response frames. */
+/**
+ * Sends requests to the earbuds and returns their response frames.
+ *
+ * A response carries the same command id as the request with bit 15 set, and the same sequence
+ * number. Its first data byte is the status, 00 when OK (see 'Frame anatomy' in docs/PROTOCOL.md).
+ */
 fun interface Requester {
     /**
      * Sends a request and waits for its response.
      *
-     * Args:
-     *     cmd: Command id.
-     *     data: Request payload.
-     *
-     * Returns:
-     *     The response frame, or null if none arrived.
+     * @param cmd command id, see [Cmd].
+     * @param data request payload, empty when the command takes no arguments.
+     * @return the response frame, or null if none arrived.
      */
     suspend fun request(
         cmd: Int,
@@ -26,16 +28,43 @@ fun interface Requester {
     ): Frame?
 }
 
-/** Sends a request with an empty payload. */
+/**
+ * Sends a request with an empty payload.
+ *
+ * @param cmd command id, see [Cmd].
+ * @return the response frame, or null if none arrived.
+ */
 suspend fun Requester.request(cmd: Int): Frame? = request(cmd, ByteArray(0))
 
-/** A ready-to-send protocol command: command id plus payload. */
+/**
+ * A ready-to-send protocol command: command id plus payload.
+ *
+ * @property cmd command id, see [Cmd].
+ * @property data payload bytes, empty when the command takes no arguments.
+ */
 class Command(
     val cmd: Int,
     val data: ByteArray,
 )
 
-/** State read from the earbuds. Fields are null or empty when not readable. */
+/**
+ * State read from the earbuds. Fields are null or empty when not readable.
+ *
+ * @property battery battery level in percent (last byte of the 0x0106 response), or null.
+ * @property firmware version text from the 0x0105 response, or null.
+ * @property noise current noise-control mode: 01 off, 02 transparency, 04/08/10/20 ANC levels.
+ * @property noiseCycle mask of the noise-control button cycle: 01 off, 02 transparency, 08 ANC.
+ * @property eq active equalizer id: 00..03 presets, 04 custom, or null.
+ * @property volumeEnhancer true when the volume enhancer is on, or null.
+ * @property features feature id to enabled state, from the 0x010d response. Empty when not read.
+ * @property keys (button shl 8 or action) to function id, see [BudsApi.keyId]. Empty when not read.
+ * @property devices paired devices from the Dual-device list. Empty when not read.
+ * @property dynamic Dynamic audio slider type (1 low, 2 mid, 3 high) to its current signed value.
+ *     Empty when not read.
+ * @property customEq custom EQ gains in dB, one per band, or null when no custom EQ (id 4) was
+ *     reported.
+ * @property customEqFreqs band frequencies in Hz, in the same order as [customEq], or null.
+ */
 data class BudsState(
     val battery: Int?,
     val firmware: String?,
@@ -51,7 +80,14 @@ data class BudsState(
     val customEqFreqs: List<Int>?,
 )
 
-/** Device from the Dual-device list. [mac] is in protocol byte order. */
+/**
+ * Device from the Dual-device list. [mac] is in protocol byte order.
+ *
+ * @property mac six address bytes, in protocol byte order.
+ * @property name device name, decoded as UTF-8.
+ * @property state connection state: 0 disconnected, 1 connecting, 2 connected.
+ * @property isThisDevice true when the earbuds flag this entry as this device.
+ */
 class PairedDevice(
     val mac: ByteArray,
     val name: String,
@@ -62,8 +98,14 @@ class PairedDevice(
     val macText: String get() = mac.reversed().joinToString(":") { "%02X".format(it) }
 }
 
+/**
+ * Builders and parsers for the earbuds control protocol, one function per command.
+ *
+ * Builders return a [Command] to pass to [send]. Queries take a [Requester] and return parsed
+ * values or null. Wire details are in docs/PROTOCOL.md.
+ */
 object BudsApi {
-    /** Feature ids known to be readable with 0x010d. */
+    /** Feature ids known to be readable with 0x010d, requested by [readState]. */
     val FEATURE_IDS =
         intArrayOf(
             Feature.ENHANCE_VOICES,
@@ -96,6 +138,13 @@ object BudsApi {
             0x00,
         )
 
+    /**
+     * Packs a button and an action into the key used in [BudsState.keys].
+     *
+     * @param button button id, for example 01 multifunction or 04 noise control.
+     * @param action action id: 01 single tap, 02 double tap, 03 triple tap, 04 touch and hold.
+     * @return `(button shl 8) or action`.
+     */
     fun keyId(
         button: Int,
         action: Int,
@@ -105,7 +154,18 @@ object BudsApi {
 
     private fun flag(on: Boolean): Int = if (on) 1 else 0
 
-    private fun last(d: ByteArray?): Int? = d?.lastOrNull()?.toInt()?.and(0xff)
+    /**
+     * Returns the last byte of a response payload as an unsigned value.
+     *
+     * The first byte is the status, so a payload with only the status byte has no value.
+     *
+     * @param d response payload, or null when there is no response.
+     * @return the last byte (0..255), or null if [d] is null or has fewer than 2 bytes.
+     */
+    private fun last(d: ByteArray?): Int? {
+        if (d == null || d.size < 2) return null
+        return d[d.size - 1].toInt() and 0xff
+    }
 
     /** Logs a missing or malformed response by command id only. */
     private fun logMalformed(cmd: Int): Nothing? {
@@ -125,7 +185,23 @@ object BudsApi {
         return null
     }
 
-    /** Reads the full device state, one request per section, in fixed order. */
+    /**
+     * Reads the full device state, one request per section, in fixed order.
+     *
+     * Requests, in order: [Cmd.QUERY_STATUS] (battery), [Cmd.QUERY_VERSION] (firmware),
+     * [Cmd.QUERY_NOISE] twice (mode, then cycle mask), [Cmd.QUERY_EQ], [Cmd.QUERY_VOLUME],
+     * [Cmd.QUERY_FEATURES], [Cmd.QUERY_KEYS], [Cmd.QUERY_PAIRED], [Cmd.QUERY_DYNAMIC] and
+     * [Cmd.QUERY_ALL_EQ]. Layouts are in 'Queries (0x01xx)' and 'Other queries (not used by the app)'
+     * in docs/PROTOCOL.md.
+     *
+     * A section with no OK response, or a payload too short to parse, is left at its default: null
+     * for scalar fields, empty for maps and lists. Entries that do not fit in the payload are
+     * skipped; paired devices and the custom EQ stop at the first such entry and keep the ones
+     * read before it. Parsing skips the first returned data byte before reading the fields.
+     *
+     * @param r requester used for every query.
+     * @return the state read; fields that could not be read are null or empty.
+     */
     suspend fun readState(r: Requester): BudsState {
         val battery = last(query(r, Cmd.QUERY_STATUS))
 
@@ -287,7 +363,16 @@ object BudsApi {
         )
     }
 
-    /** Sends [command] and returns true only if the response is present and OK. */
+    /**
+     * Sends [command] and checks that the earbuds acknowledged it.
+     *
+     * Only the response status is checked; the response data is not read. A missing or failed
+     * response is logged by command id.
+     *
+     * @param r requester that sends the frame.
+     * @param command command to send, usually built by one of the functions in this object.
+     * @return true only if the response is present and OK.
+     */
     suspend fun send(
         r: Requester,
         command: Command,
@@ -298,56 +383,132 @@ object BudsApi {
     }
 
     /**
-     * Asks the earbuds which events they can send (0x0200) and registers the ones this app knows (0x0205).
+     * Registers the known events: query 0x0200, then register 0x0205.
      *
+     * Sends [Cmd.QUERY_EVENTS], keeps the supported ids that are in [EventId.ALL], and sends
+     * [Cmd.REGISTER_EVENTS] for them. Returns false without registering when the query has no
+     * response or no supported id is known. Notifications then arrive as frames with cmd 0x0204
+     * (see 'Event registration (0x02xx)' in docs/PROTOCOL.md).
+     *
+     * @param r requester used for both requests.
      * @return true if registration was acknowledged.
      */
     suspend fun registerEvents(r: Requester): Boolean {
         val supported = Events.parseSupported(r.request(Cmd.QUERY_EVENTS) ?: return false)
         val ids = supported.filter { it in EventId.ALL }
         if (ids.isEmpty()) {
-            Log.d({ "No known events to register" })
+            Log.d { "No known events to register" }
             return false
         }
-        Log.d({ "Registering events: ${ids.joinToString { "0x%02x".format(it) }}" })
+        Log.d { "Registering events: ${ids.joinToString { "0x%02x".format(it) }}" }
         return send(r, Command(Cmd.REGISTER_EVENTS, Events.registerData(ids)))
     }
 
-    /** Noise-control mode (0x0404, action 01). */
+    /**
+     * Builds the noise-control mode command (0x0404, action 01).
+     *
+     * Request bytes: `01 01 mode`. Modes are in 'Settings (0x04xx)' in docs/PROTOCOL.md.
+     *
+     * @param mode mode byte: 01 off, 02 transparency, 04/08/10/20 ANC levels.
+     * @return the command to pass to [send].
+     */
     fun setNoise(mode: Int): Command = Command(Cmd.SET_NOISE, bytes(1, 1, mode))
 
-    /** Noise-control button cycle mask (0x0404, action 02). */
+    /**
+     * Builds the noise-control button cycle command (0x0404, action 02).
+     *
+     * Request bytes: `02 01 mask`.
+     *
+     * @param mask bit mask of the modes in the cycle: 01 off, 02 transparency, 08 ANC.
+     * @return the command to pass to [send].
+     */
     fun setNoiseCycle(mask: Int): Command = Command(Cmd.SET_NOISE, bytes(2, 1, mask))
 
-    /** EQ preset (0x0406). */
+    /**
+     * Builds the EQ preset command (0x0406).
+     *
+     * Request byte: the preset id. Setting a preset keeps the custom EQ values (see [createCustomEq]).
+     *
+     * @param preset preset id: 00 nature balance, 01 bass boost, 02 clear vocals, 03 clear bass.
+     * @return the command to pass to [send].
+     */
     fun setEq(preset: Int): Command = Command(Cmd.SET_EQ, bytes(preset))
 
-    /** Volume enhancer on or off (0x0407). */
+    /**
+     * Builds the volume enhancer command (0x0407).
+     *
+     * @param on true to turn the volume enhancer on.
+     * @return the command to pass to [send].
+     */
     fun setHighVolume(on: Boolean): Command = Command(Cmd.SET_HIGH_VOLUME, bytes(flag(on)))
 
-    /** Switch feature [id] on or off (0x0403). */
+    /**
+     * Builds the command that switches feature [id] on or off (0x0403).
+     *
+     * Request bytes: `id 01` or `id 00`. Feature ids are in 'Settings (0x04xx)' in docs/PROTOCOL.md.
+     *
+     * @param id feature id, for example 0x1a smart de-wind or 0x26 find my phone.
+     * @param on true to switch the feature on.
+     * @return the command to pass to [send].
+     */
     fun setFeature(
         id: Int,
         on: Boolean,
     ): Command = Command(Cmd.SET_FEATURE, bytes(id, flag(on)))
 
-    /** Dynamic slider value for [type] (0x041b). */
+    /**
+     * Builds the Dynamic audio slider command (0x041b).
+     *
+     * Request bytes: `fb 05 value type`, so the range is always -5 to +5.
+     *
+     * @param type slider id: 1 low, 2 mid, 3 high.
+     * @param value signed slider value, expected in -5 to +5 (not checked here).
+     * @return the command to pass to [send].
+     */
     fun setDynamicSlider(
         type: Int,
         value: Int,
     ): Command = Command(Cmd.SET_DYNAMIC_SLIDER, bytes(0xfb, 5, value, type))
 
-    /** Button function [fn] for [button] and [action] (0x0401). */
+    /**
+     * Builds the button function command (0x0401) for one button and action.
+     *
+     * Request bytes: `01 01 button action fn`, one entry with device type 01. Function ids are in
+     * 'Settings (0x04xx)' in docs/PROTOCOL.md.
+     *
+     * @param button button id, for example 01 multifunction or 04 noise control.
+     * @param action action id: 01 single tap, 02 double tap, 03 triple tap, 04 touch and hold.
+     * @param fn function id, for example 00 none or 01 play/pause.
+     * @return the command to pass to [send].
+     */
     fun setKey(
         button: Int,
         action: Int,
         fn: Int,
     ): Command = Command(Cmd.SET_KEYS, bytes(1, 1, button, action, fn))
 
-    /** Starts or stops the fit test (0x0405). */
+    /**
+     * Builds the fit test command (0x0405).
+     *
+     * Request byte: `01` to start, `00` to stop. The result arrives as fit-test event 0x04 (see
+     * 'Events' in docs/PROTOCOL.md).
+     *
+     * @param start true to start the test, false to stop it.
+     * @return the command to pass to [send].
+     */
     fun fitTest(start: Boolean): Command = Command(Cmd.FIT_TEST, bytes(flag(start)))
 
-    /** Connect (1) or delete (2) a paired device (0x040b). Action 0 disconnects, untested. */
+    /**
+     * Builds the dual-device command for one paired device (0x040b).
+     *
+     * Request bytes: `01 mac action`. Action 1 connects, 2 removes the device. Action 0 disconnects,
+     * which this app has not tested. The response can take more than 2 s (see 'Settings (0x04xx)'
+     * in docs/PROTOCOL.md).
+     *
+     * @param mac six address bytes of the device, in protocol byte order.
+     * @param action 0 disconnect, 1 connect, 2 remove.
+     * @return the command to pass to [send].
+     */
     fun multiConnect(
         mac: ByteArray,
         action: Int,
@@ -359,13 +520,31 @@ object BudsApi {
         return Command(Cmd.SET_MULTI_CONNECT, out)
     }
 
-    /** Creates the custom EQ with the given band frequencies (0x0418, op 1). */
+    /**
+     * Builds the command that creates the custom EQ (0x0418, op 1).
+     *
+     * All gains are sent as 0 dB and the eq id as 0, as described in 'Settings (0x04xx)' (block
+     * 0x0418) in docs/PROTOCOL.md.
+     *
+     * @param freqs band frequencies in Hz, sent as u16 little endian.
+     * @return the command to pass to [send].
+     */
     fun createCustomEq(freqs: List<Int>): Command {
         val zeros = IntArray(freqs.size)
         return Command(Cmd.SET_CUSTOM_EQ, Protocol.customEqData(1, 0, zeros, freqs.toIntArray()))
     }
 
-    /** Updates the custom EQ gains for the given band frequencies (0x0418, op 2). */
+    /**
+     * Builds the command that updates the custom EQ gains (0x0418, op 2).
+     *
+     * The earbuds switch to the custom EQ on their own after this command, as described in
+     * 'Settings (0x04xx)' (block 0x0418) in docs/PROTOCOL.md. Create the custom EQ first with
+     * [createCustomEq].
+     *
+     * @param gains signed gain per band in dB, expected in -6 to +6 (not checked here).
+     * @param freqs band frequencies in Hz, in the same order and length as [gains].
+     * @return the command to pass to [send].
+     */
     fun updateCustomEq(
         gains: List<Int>,
         freqs: List<Int>,

@@ -28,7 +28,10 @@ private const val DISABLED_ALPHA = 0.38f
  * A list-style row with a title, optional subtitle and an optional trailing content slot.
  * The row is clickable only when [onClick] is not null.
  *
- * @param content Optional trailing content, rendered at the end of the row.
+ * @param title primary text of the row
+ * @param subtitle secondary text shown below the title, hidden when null
+ * @param onClick click callback, or null to make the row non-clickable
+ * @param content optional trailing content, rendered at the end of the row
  */
 @Composable
 fun SettingRow(
@@ -50,6 +53,12 @@ fun SettingRow(
 
 /**
  * A [SettingRow] with a trailing [Switch]. The whole row toggles the value.
+ *
+ * @param title primary text of the row
+ * @param checked current switch state
+ * @param onCheckedChange callback with the new state when the row is toggled
+ * @param subtitle secondary text shown below the title, hidden when null
+ * @param enabled whether the row and its switch respond to input; disabled rows are dimmed
  */
 @Composable
 fun SwitchRow(
@@ -84,6 +93,11 @@ fun SwitchRow(
 
 /**
  * A [SettingRow] that navigates on click, with an optional value text and a decorative arrow.
+ *
+ * @param title primary text of the row
+ * @param onClick callback invoked when the row is clicked
+ * @param value optional text shown before the arrow, for example the current selection
+ * @param subtitle secondary text shown below the title, hidden when null
  */
 @Composable
 fun NavRow(

@@ -35,8 +35,8 @@ import dev.openbuds.app.ui.components.SettingsCard
  *
  * The test state is reset when the screen leaves composition.
  *
- * @param viewModel Source of the fit test state, its actions and the refresh state.
- * @param onBack Navigation callback for the back arrow.
+ * @param viewModel source of the fit test state, its actions and the refresh state
+ * @param onBack navigation callback for the back arrow
  */
 @Composable
 fun FitTestScreen(
@@ -103,7 +103,13 @@ fun FitTestScreen(
     }
 }
 
-/** Result view: a success badge when both earbuds are good, otherwise per-earbud status with a fit tip. */
+/**
+ * Result view: a success badge when both earbuds are [FitStatus.GOOD], otherwise per-earbud status
+ * with a fit tip and a retry button.
+ *
+ * @param result fit test outcome for the left and right earbud
+ * @param onRetry callback that starts a new fit test
+ */
 @Composable
 private fun DoneContent(
     result: FitTestUiState.Done,
@@ -149,7 +155,11 @@ private fun DoneContent(
     }
 }
 
-/** Centered column holding the body of one test state. */
+/**
+ * Centered column holding the body of one test state.
+ *
+ * @param content children laid out vertically with 16.dp spacing
+ */
 @Composable
 private fun StateColumn(content: @Composable ColumnScope.() -> Unit) {
     Column(
@@ -163,7 +173,11 @@ private fun StateColumn(content: @Composable ColumnScope.() -> Unit) {
     )
 }
 
-/** Centered body text used for state messages. */
+/**
+ * Centered body text used for state messages.
+ *
+ * @param text message to display
+ */
 @Composable
 private fun Message(text: String) {
     Text(
@@ -174,7 +188,15 @@ private fun Message(text: String) {
     )
 }
 
-/** Maps a per-earbud fit status to the subtitle shown in the result card. */
+/**
+ * Maps a per-earbud fit status to the subtitle shown in the result card.
+ *
+ * [FitStatus.GOOD] and [FitStatus.NOT_IDEAL] have their own labels. Every other status, including
+ * [FitStatus.FAILED] and [FitStatus.NOT_INSERTED], falls back to the unknown label.
+ *
+ * @param status fit status of one earbud
+ * @return localized subtitle text
+ */
 @Composable
 private fun fitStatusText(status: FitStatus): String =
     when (status) {
@@ -183,7 +205,14 @@ private fun fitStatusText(status: FitStatus): String =
         else -> stringResource(R.string.fit_unknown)
     }
 
-/** Picks the fit tip matching which earbud(s) need adjusting. */
+/**
+ * Picks the fit tip matching which earbud(s) need adjusting.
+ *
+ * An earbud needs adjusting when its status is anything other than [FitStatus.GOOD].
+ *
+ * @param result fit test outcome for the left and right earbud
+ * @return localized tip text for the left, right or both earbuds
+ */
 @Composable
 private fun tipText(result: FitTestUiState.Done): String {
     val leftNeedsAdjust = result.left != FitStatus.GOOD

@@ -25,7 +25,10 @@ import androidx.compose.ui.unit.dp
 import dev.openbuds.app.R
 
 /**
- * Standard screen layout: a pinned top app bar and a pull-to-refresh, vertically scrolling [content] column.
+ * Lay out a screen with a pinned top app bar and pull-to-refresh.
+ *
+ * The [content] items are stacked in a vertically scrolling column with 16 dp spacing. The back
+ * arrow is shown only when [onBack] is not null.
  *
  * @param title Text shown in the top app bar.
  * @param onBack Navigation callback for the back arrow, or null to hide it.

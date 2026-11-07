@@ -21,7 +21,19 @@ import dev.openbuds.app.ui.components.EmptyState
 import dev.openbuds.app.ui.components.NavRow
 import dev.openbuds.app.ui.components.SettingsCard
 
-/** Full-screen connection flow shown until the earbuds are connected and their state is loaded. */
+/**
+ * Show the full-screen connection flow until the earbuds are ready.
+ *
+ * Renders the prompt, device list or spinner that matches [state], and stays until the earbuds
+ * are connected and their state is loaded.
+ *
+ * @param state current connection step to render.
+ * @param onGrantPermission called when the user taps the permission action.
+ * @param onEnableBluetooth called when the user taps the Bluetooth-off action.
+ * @param onOpenBluetoothSettings called when the user taps the no-devices action.
+ * @param onSelect called with the address of the device the user picks.
+ * @param onReconnect called when the user taps the reconnect action.
+ */
 @Composable
 fun ConnectionScreen(
     state: ConnectionState,

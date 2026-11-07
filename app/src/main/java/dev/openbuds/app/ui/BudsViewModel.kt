@@ -8,7 +8,6 @@ import dev.openbuds.app.data.BudsApi
 import dev.openbuds.app.data.BudsRepository
 import dev.openbuds.app.data.BudsState
 import dev.openbuds.app.data.BudsUiState
-import dev.openbuds.app.data.Command
 import dev.openbuds.app.protocol.BudsEvent
 import dev.openbuds.app.protocol.Eq
 import dev.openbuds.app.protocol.Feature
@@ -24,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 /** UI state of the earbud fit test. */
 sealed interface FitTestUiState {
@@ -39,14 +39,23 @@ sealed interface FitTestUiState {
     /** The fit test failed or timed out. */
     data object Failed : FitTestUiState
 
-    /** The fit test finished with [left] and [right] results. */
+    /**
+     * The fit test finished with [left] and [right] results.
+     *
+     * @property left fit result for the left earbud
+     * @property right fit result for the right earbud
+     */
     data class Done(
         val left: FitStatus,
         val right: FitStatus,
     ) : FitTestUiState
 }
 
-/** Holds the earbud state for the UI and forwards user actions to [BudsRepository]. */
+/**
+ * Holds earbud UI state and forwards user actions to [BudsRepository].
+ *
+ * @param application the application that provides the shared repository and phone ringer
+ */
 class BudsViewModel(
     application: Application,
 ) : AndroidViewModel(application) {
@@ -59,7 +68,7 @@ class BudsViewModel(
     /** Connection lifecycle and the last state read from the earbuds. */
     val uiState: StateFlow<BudsUiState> = repository.state
 
-    /** True while [reload] is in progress; drives the pull-to-refresh indicator. */
+    /** True while [reload] runs; drives the pull-to-refresh indicator. */
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
 
     /** Progress and result of the earbud fit test. */
@@ -82,7 +91,11 @@ class BudsViewModel(
         }
     }
 
-    /** Looks for bonded earbuds and connects to the only one, or asks the user to choose. */
+    /**
+     * Looks for bonded earbuds and connects to the only one.
+     *
+     * When several earbuds are bonded, the user is asked to choose one.
+     */
     fun refresh() {
         repository.refresh()
     }
@@ -100,7 +113,11 @@ class BudsViewModel(
         }
     }
 
-    /** Connects to the bonded earbuds with [address]. */
+    /**
+     * Connects to the bonded earbuds with [address].
+     *
+     * @param address Bluetooth address of the bonded device to connect to
+     */
     fun selectDevice(address: String) {
         repository.select(address)
     }
@@ -110,12 +127,21 @@ class BudsViewModel(
         repository.reconnect()
     }
 
-    /** Sets the noise-control mode; [mode] is one of the Noise.* values. */
+    /**
+     * Sets the noise-control mode.
+     *
+     * @param mode one of the Noise.* values
+     */
     fun setNoiseMode(mode: Int) {
         repository.apply(BudsApi.setNoise(mode)) { it.copy(noise = mode) }
     }
 
-    /** Switches feature [id] (a Feature.* value) on or off. */
+    /**
+     * Switches a feature on or off.
+     *
+     * @param id a Feature.* value identifying the feature
+     * @param on true to enable the feature
+     */
     fun setFeature(
         id: Int,
         on: Boolean,
@@ -123,17 +149,30 @@ class BudsViewModel(
         repository.apply(BudsApi.setFeature(id, on)) { it.copy(features = it.features + (id to on)) }
     }
 
-    /** Selects an EQ preset. */
+    /**
+     * Selects an EQ preset.
+     *
+     * @param preset the EQ preset value to select
+     */
     fun setEq(preset: Int) {
         repository.apply(BudsApi.setEq(preset)) { it.copy(eq = preset) }
     }
 
-    /** Turns the volume enhancer on or off. */
+    /**
+     * Turns the volume enhancer on or off.
+     *
+     * @param on true to enable the volume enhancer
+     */
     fun setHighVolume(on: Boolean) {
         repository.apply(BudsApi.setHighVolume(on)) { it.copy(volumeEnhancer = on) }
     }
 
-    /** Starts the earbud fit test; [fitTest] stays Running until a result arrives or the test times out. */
+    /**
+     * Starts the earbud fit test and sets [fitTest] to Running.
+     *
+     * Does nothing if a test is already running. [fitTest] stays Running until a result arrives or the
+     * test times out.
+     */
     fun startFitTest() {
         if (_fitTest.value is FitTestUiState.Running) return
         _fitTest.value = FitTestUiState.Running
@@ -141,12 +180,16 @@ class BudsViewModel(
         fitTimeoutJob?.cancel()
         fitTimeoutJob =
             viewModelScope.launch {
-                delay(FIT_TEST_TIMEOUT_MS)
+                delay(FIT_TEST_TIMEOUT_MS.milliseconds)
                 if (_fitTest.value is FitTestUiState.Running) _fitTest.value = FitTestUiState.Failed
             }
     }
 
-    /** Stops a running test on the earbuds, cancels its timeout and returns [fitTest] to Idle. */
+    /**
+     * Stops the running fit test and returns [fitTest] to Idle.
+     *
+     * Cancels the pending timeout. The earbuds are only told to stop when a test was running.
+     */
     fun resetFitTest() {
         val wasRunning = _fitTest.value is FitTestUiState.Running
         fitTimeoutJob?.cancel()
@@ -155,7 +198,12 @@ class BudsViewModel(
         if (wasRunning) repository.apply(BudsApi.fitTest(false)) { it }
     }
 
-    /** Sets a dynamic slider: [type] is 1 (low), 2 (mid) or 3 (high), [value] is -5..5. */
+    /**
+     * Sets one dynamic slider on the earbuds.
+     *
+     * @param type slider to set: 1 (low), 2 (mid) or 3 (high)
+     * @param value slider value from -5 to 5
+     */
     fun setDynamicSlider(
         type: Int,
         value: Int,
@@ -163,12 +211,18 @@ class BudsViewModel(
         repository.apply(BudsApi.setDynamicSlider(type, value)) { it.copy(dynamic = it.dynamic + (type to value)) }
     }
 
-    /** Stores six custom EQ gains (-6..6), creating the custom EQ first when the earbuds do not have one. */
+    /**
+     * Stores six custom EQ gains on the earbuds.
+     *
+     * Creates the custom EQ first when the earbuds do not have one.
+     *
+     * @param gains six band gains from -6 to 6
+     */
     fun setCustomEq(gains: List<Int>) {
         val buds = repository.state.value.buds
         val freqs = bandFreqs(buds)
         val commands =
-            buildList<Command> {
+            buildList {
                 if (buds?.customEq == null) add(BudsApi.createCustomEq(freqs))
                 add(BudsApi.updateCustomEq(gains, freqs))
             }
@@ -176,20 +230,30 @@ class BudsViewModel(
         repository.applyAll(commands) { it.copy(customEq = stored, eq = EQ_CUSTOM) }
     }
 
-    /** Sets the custom EQ bands to zero and switches back to the Clear Bass preset. */
+    /**
+     * Zeroes the custom EQ bands and switches to the Clear Bass preset.
+     *
+     * The bands are only zeroed when the earbuds already have a custom EQ.
+     */
     fun resetCustomEq() {
         val buds = repository.state.value.buds
         val freqs = bandFreqs(buds)
         val exists = buds?.customEq != null
         val commands =
-            buildList<Command> {
+            buildList {
                 if (exists) add(BudsApi.updateCustomEq(freqs.map { 0 }, freqs))
                 add(BudsApi.setEq(Eq.CLEAR_BASS))
             }
         repository.applyAll(commands) { it.copy(customEq = it.customEq?.map { 0 }, eq = Eq.CLEAR_BASS) }
     }
 
-    /** Assigns [fn] to [button] for the press [action]. */
+    /**
+     * Assigns a function to a button press.
+     *
+     * @param button button id to configure
+     * @param action press action id
+     * @param fn KeyFn.* value to assign
+     */
     fun setKey(
         button: Int,
         action: Int,
@@ -200,7 +264,13 @@ class BudsViewModel(
         }
     }
 
-    /** Sets the noise-control button cycle to [mask] (CycleBit.* bits) and maps the button to it. */
+    /**
+     * Sets the noise-control button cycle and maps the cycle button to it.
+     *
+     * The cycle button is mapped to [KeyFn.NOISE_CONTROL].
+     *
+     * @param mask CycleBit.* bits of the modes in the cycle
+     */
     fun setNoiseCycle(mask: Int) {
         val commands =
             listOf(
@@ -215,7 +285,12 @@ class BudsViewModel(
         }
     }
 
-    /** Connects (action 1) or deletes (action 2) the paired device with [mac] in protocol byte order. */
+    /**
+     * Connects or deletes a paired device.
+     *
+     * @param mac device MAC address in protocol byte order
+     * @param action 1 to connect, 2 to delete
+     */
     fun multiConnect(
         mac: ByteArray,
         action: Int,
@@ -223,13 +298,21 @@ class BudsViewModel(
         repository.apply(BudsApi.multiConnect(mac, action)) { it }
     }
 
-    /** Turns the find-my-phone feature on or off and starts or stops [BudsService] to match. */
+    /**
+     * Turns find-my-phone on or off, starting or stopping [BudsService].
+     *
+     * @param on true to enable find-my-phone
+     */
     fun setFindMyPhone(on: Boolean) {
         setFeature(Feature.FIND_MY_PHONE, on)
         if (on) BudsService.start(getApplication()) else BudsService.stop(getApplication())
     }
 
-    /** Starts or stops the test ring on this phone, used to check the find-my-phone sound. */
+    /**
+     * Starts or stops the test ring on this phone.
+     *
+     * Used to check the find-my-phone sound.
+     */
     fun toggleTestRing() {
         phoneRinger.toggle()
     }

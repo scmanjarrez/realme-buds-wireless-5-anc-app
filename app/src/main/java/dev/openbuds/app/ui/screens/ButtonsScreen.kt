@@ -41,12 +41,13 @@ import dev.openbuds.app.ui.components.NavRow
 import dev.openbuds.app.ui.components.SettingRow
 import dev.openbuds.app.ui.components.SettingsCard
 
-/** Button used by the earbud press gestures (legacy id 1). */
+/** Earbud multifunction button id (legacy id 1). Wire value 0x01. */
 private const val EARBUD_BUTTON = 1
 
 /** The noise-control cycle must keep at least this many modes selected. */
 private const val MIN_CYCLE_MODES = 2
 
+/** Press gestures on the earbud button; [action] is the 0x0401 action code. */
 private enum class Gesture(
     val action: Int,
     @param:StringRes val label: Int,
@@ -90,6 +91,19 @@ private val cycleOptions =
 
 private fun functionLabel(fn: Int?): Int? = functionOptions.firstOrNull { it.fn == fn }?.label
 
+/**
+ * Button settings screen: earbud gesture functions and the noise-control cycle.
+ *
+ * Gesture functions are read from and written to 0x0401 (button functions). The noise-control
+ * cycle is written through `setNoiseCycle`, which uses 0x0404 (noise control). Tapping a gesture
+ * opens a bottom sheet with the assignable functions.
+ *
+ * @param buds current earbud state; `keys` provides the assigned functions and `noiseCycle` the
+ * selected noise modes.
+ * @param viewModel source of the `setKey` and `setNoiseCycle` commands and of the refresh state
+ * and `reload` action.
+ * @param onBack called when the back navigation is used.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ButtonsScreen(

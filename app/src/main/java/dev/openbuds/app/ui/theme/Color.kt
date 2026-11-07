@@ -5,6 +5,31 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.ui.graphics.Color
 
+/**
+ * Light fallback color scheme for the OpenBuds Material 3 theme.
+ *
+ * Used by [OpenBudsTheme] when dynamic color is unavailable (Android below 12, API 31) or disabled,
+ * and the app is not in dark mode. Token roles, grouped by Material 3 family:
+ *
+ * - Primary: [ColorScheme.primary] and its on/container pair. Main brand accent for filled
+ *   buttons and selected states. [ColorScheme.inversePrimary] is the accent shown on inverse surfaces.
+ * - Secondary: [ColorScheme.secondary] family. Less prominent accents such as chips and
+ *   secondary buttons.
+ * - Tertiary: [ColorScheme.tertiary] family. Contrasting accent for highlights.
+ * - Background and surface: [ColorScheme.background], [ColorScheme.surface] and the
+ *   [ColorScheme.surfaceContainerLowest] to [ColorScheme.surfaceContainerHighest] ladder.
+ *   Higher container tiers are more prominent.
+ * - Surface variant: [ColorScheme.surfaceVariant] and [ColorScheme.onSurfaceVariant] for
+ *   secondary text and icons.
+ * - Surface tones: [ColorScheme.surfaceTint] tints elevated surfaces. [ColorScheme.surfaceBright]
+ *   and [ColorScheme.surfaceDim] are the lightest and darkest surface tones.
+ * - Inverse: [ColorScheme.inverseSurface] and [ColorScheme.inverseOnSurface] for high-contrast
+ *   surfaces such as snack bars.
+ * - Error: [ColorScheme.error] family for error text and destructive states.
+ * - Outline: [ColorScheme.outline] for emphasized borders, [ColorScheme.outlineVariant] for
+ *   decorative dividers.
+ * - Scrim: [ColorScheme.scrim] is the overlay behind modal content.
+ */
 internal val FallbackLightColorScheme: ColorScheme =
     lightColorScheme(
         primary = Color(0xFF3F51B5),
@@ -45,6 +70,13 @@ internal val FallbackLightColorScheme: ColorScheme =
         surfaceContainerHighest = Color(0xFFE3E1E9),
     )
 
+/**
+ * Dark fallback color scheme for the OpenBuds Material 3 theme.
+ *
+ * Used by [OpenBudsTheme] under the same conditions as [FallbackLightColorScheme], when the app
+ * is in dark mode. Each token has the same role as in [FallbackLightColorScheme]; the tones are
+ * adjusted for dark backgrounds, so containers are darker and on-colors are lighter.
+ */
 internal val FallbackDarkColorScheme: ColorScheme =
     darkColorScheme(
         primary = Color(0xFFBAC3FF),

@@ -1,6 +1,11 @@
 package dev.openbuds.app.data
 
-/** A bonded earbud the user can pick from. */
+/**
+ * A bonded earbud the user can pick from.
+ *
+ * @property name Display name reported by the Bluetooth stack.
+ * @property address Bluetooth hardware address of the device.
+ */
 data class BondedDevice(
     val name: String,
     val address: String,
@@ -17,7 +22,11 @@ sealed interface ConnectionState {
     /** No bonded realme Buds device was found. */
     data object NoDevices : ConnectionState
 
-    /** More than one bonded device matches; the user must pick one. */
+    /**
+     * More than one bonded device matches; the user must pick one.
+     *
+     * @property devices Candidate devices to show in the picker.
+     */
     data class ChooseDevice(
         val devices: List<BondedDevice>,
     ) : ConnectionState
@@ -32,7 +41,13 @@ sealed interface ConnectionState {
     data object Disconnected : ConnectionState
 }
 
-/** Full UI state: the connection lifecycle plus the last state read from the earbuds. */
+/**
+ * Full UI state: the connection lifecycle plus the last state read from the earbuds.
+ *
+ * @property connection Current position in the connection lifecycle. Starts as
+ *   [ConnectionState.NeedsPermission].
+ * @property buds Last earbud state read over the link, or null before the first successful read.
+ */
 data class BudsUiState(
     val connection: ConnectionState = ConnectionState.NeedsPermission,
     val buds: BudsState? = null,

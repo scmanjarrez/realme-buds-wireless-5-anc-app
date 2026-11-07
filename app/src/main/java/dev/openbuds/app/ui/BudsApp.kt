@@ -29,17 +29,40 @@ import dev.openbuds.app.util.BLUETOOTH_CONNECT_PERMISSION
 
 private const val TAG = "BudsApp"
 
-/** Navigation routes for the connected screens. */
+/**
+ * Navigation routes for the connected screens.
+ *
+ * [HOME] is the start destination. [EQ] is the equalizer, [BUTTONS] the press-action mapping,
+ * [DUAL] the dual-device screen, [FIT] the fit test and [FIND_PHONE] the find-my-phone screen.
+ */
 object Routes {
+    /** Opens [HomeScreen], the start destination of the connected screens. */
     const val HOME = "home"
+
+    /** Opens [EqScreen] to choose and edit the equalizer preset. */
     const val EQ = "eq"
+
+    /** Opens [ButtonsScreen] to map the press actions of the earbuds. */
     const val BUTTONS = "buttons"
+
+    /** Opens [DualDeviceScreen] to manage the dual-device connection. */
     const val DUAL = "dual"
+
+    /** Opens [FitTestScreen] to run the fit test. */
     const val FIT = "fit"
+
+    /** Opens [FindPhoneScreen] to make the earbuds ring. */
     const val FIND_PHONE = "find_phone"
 }
 
-/** Root of the UI: shows the connection flow until earbuds are connected, then the screens. */
+/**
+ * Shows the connection flow, then the connected screens.
+ *
+ * Until earbuds are connected, [ConnectionScreen] is shown. Once they are, navigation starts
+ * at [Routes.HOME].
+ *
+ * @param viewModel the [BudsViewModel] that holds the UI state and receives user actions
+ */
 @Composable
 fun BudsApp(viewModel: BudsViewModel = viewModel()) {
     val ui by viewModel.uiState.collectAsStateWithLifecycle()

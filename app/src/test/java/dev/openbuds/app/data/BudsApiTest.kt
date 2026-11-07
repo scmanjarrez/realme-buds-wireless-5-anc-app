@@ -175,6 +175,35 @@ class BudsApiTest {
     }
 
     @Test
+    fun readStateLeavesBatteryAndNoiseNullWhenResponsesHaveOnlyStatus() {
+        val requester =
+            FakeRequester(
+                mapOf(
+                    // Battery response with only the status byte.
+                    key(Cmd.QUERY_STATUS) to bytes(0x00),
+                    // Noise mode and button cycle responses with only the status byte.
+                    key(Cmd.QUERY_NOISE, 0x01) to bytes(0x00),
+                    key(Cmd.QUERY_NOISE, 0x02) to bytes(0x00),
+                ),
+            )
+
+        val state = runBlocking { BudsApi.readState(requester) }
+
+        assertNull(state.battery)
+        assertNull(state.noise)
+        assertNull(state.noiseCycle)
+    }
+
+    @Test
+    fun readStateTakesLastByteOfBatteryResponse() {
+        val requester = FakeRequester(mapOf(key(Cmd.QUERY_STATUS) to bytes(0x00, 0x01, 0x01, 0x5a)))
+
+        val state = runBlocking { BudsApi.readState(requester) }
+
+        assertEquals(90, state.battery)
+    }
+
+    @Test
     fun setNoiseWritesModeWithNoiseHeader() {
         val command = BudsApi.setNoise(Noise.MAX)
         assertEquals(Cmd.SET_NOISE, command.cmd)

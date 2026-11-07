@@ -12,30 +12,29 @@ import android.util.Log as AndroidLog
 object Log {
     private const val TAG = "OpenBuds"
 
-    /** Logs a debug message. No-op outside debug builds. */
+    /**
+     * Logs a debug message. No-op outside debug builds.
+     *
+     * @param msg lazily built message, evaluated only in debug builds.
+     */
     fun d(msg: () -> String) {
         if (BuildConfig.DEBUG) {
             AndroidLog.d(TAG, msg())
         }
     }
 
-    /** Logs a warning with an optional [t]. No-op outside debug builds. */
+    /**
+     * Logs a warning. No-op outside debug builds.
+     *
+     * @param msg lazily built message, evaluated only in debug builds.
+     * @param t optional throwable logged together with the message.
+     */
     fun w(
         msg: () -> String,
         t: Throwable? = null,
     ) {
         if (BuildConfig.DEBUG) {
             AndroidLog.w(TAG, msg(), t)
-        }
-    }
-
-    /** Logs an error with an optional [t]. No-op outside debug builds. */
-    fun e(
-        msg: () -> String,
-        t: Throwable? = null,
-    ) {
-        if (BuildConfig.DEBUG) {
-            AndroidLog.e(TAG, msg(), t)
         }
     }
 }

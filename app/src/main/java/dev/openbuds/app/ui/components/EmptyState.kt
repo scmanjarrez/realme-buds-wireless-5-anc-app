@@ -23,6 +23,20 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
+/**
+ * Show a centered placeholder with an icon, text and optional action or spinner.
+ *
+ * When [loading] is true, a progress indicator is shown and [actionLabel] and [onAction] are
+ * ignored. Otherwise, the action button is shown only when both [actionLabel] and [onAction]
+ * are non-null.
+ *
+ * @param icon illustration shown inside the circular badge
+ * @param title headline text
+ * @param message supporting text shown below the headline
+ * @param actionLabel label of the optional action button
+ * @param onAction callback for the action button, or null to hide the button
+ * @param loading when true, shows a progress indicator instead of the action button
+ */
 @Composable
 fun EmptyState(
     icon: ImageVector,

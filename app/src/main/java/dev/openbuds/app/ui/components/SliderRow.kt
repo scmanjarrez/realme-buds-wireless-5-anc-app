@@ -25,6 +25,24 @@ import kotlin.time.TimeSource
 
 private const val SETTLE_MS = 1500L
 
+/**
+ * Show a titled slider row that commits its value when dragging ends.
+ *
+ * The thumb moves locally while the user drags, and [onCommit] is called once with the rounded
+ * value when the drag finishes. While idle, the slider follows [value] only after 1500 ms have
+ * passed since the last interaction, so a value reported by the device does not overwrite the
+ * slider mid-adjustment.
+ *
+ * Units are whatever the caller uses for [value]; [valueLabel] renders them for display. Slider
+ * positions are integers in [range], inclusive at both ends. Must be called on the main thread.
+ *
+ * @param title Label shown at the start of the row.
+ * @param value Current value in the caller's units, as reported by the device or state.
+ * @param range Inclusive bounds of the slider. Every integer in it is a selectable position.
+ * @param onCommit Called once with the rounded value when the user finishes dragging.
+ * @param valueLabel Formats the displayed value. Defaults to the plain integer; use it to append
+ * units such as dB.
+ */
 @Composable
 fun LabeledSlider(
     title: String,

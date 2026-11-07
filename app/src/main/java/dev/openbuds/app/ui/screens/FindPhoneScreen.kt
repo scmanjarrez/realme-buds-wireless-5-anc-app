@@ -31,10 +31,19 @@ import dev.openbuds.app.ui.components.SwitchRow
 private const val POST_NOTIFICATIONS = "android.permission.POST_NOTIFICATIONS"
 
 /**
- * Find-my-phone settings: the feature switch, a test ring button and a battery optimization hint.
+ * Show find-my-phone settings: the feature switch, a test ring button and a battery hint.
+ *
+ * The switch sets feature `0x26` (Find my phone) through command `0x0403`, via
+ * [BudsViewModel.setFindMyPhone]. While it is on, a button press on the earbuds makes the app ring
+ * the phone (see 'Unsolicited frames (0x05xx)' in docs/PROTOCOL.md). The test ring button
+ * starts or stops ringing through [BudsViewModel.toggleTestRing].
  *
  * Enabling the feature on Android 13 or later asks for the notification permission once, so the
  * Stop notification can be shown. Denying it does not disable the feature.
+ *
+ * @param buds Current earbud state, including feature flags.
+ * @param viewModel ViewModel for refresh state, ringing state and find-my-phone commands.
+ * @param onBack Called when the back button in the scaffold is pressed.
  */
 @Composable
 fun FindPhoneScreen(

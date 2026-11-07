@@ -29,11 +29,20 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
- * Foreground service that keeps the earbud connection alive for find-my-phone and reconnects after drops.
+ * Foreground service keeping the earbud connection alive.
  *
  * It runs only while find-my-phone is enabled on the earbuds and Bluetooth connect permission is granted.
+ * It stops itself when find-my-phone is turned off, the permission is missing or Bluetooth is off.
+ * While disconnected it reconnects with a backoff of 5 s, 15 s and 60 s, then every 60 s; the attempt
+ * counter resets on connect.
+ *
+ * Two notification channels are used: a low-importance persistent "connection" channel and a
+ * high-importance ring channel. The ring notification is shown while [PhoneRinger] rings and offers a
+ * Stop action ([ACTION_STOP_RING]). Find-my-phone requests from the earbuds toggle the ringer, see
+ * 'Unsolicited frames (0x05xx)' in docs/PROTOCOL.md.
  */
 class BudsService : Service() {
     private val app: OpenBudsApp
@@ -49,9 +58,15 @@ class BudsService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     /**
-     * Enters the foreground, handles the stop-ring action and starts the background work once.
+     * Enters the foreground and handles the stop-ring action.
      *
-     * Stops itself when Bluetooth connect permission is missing.
+     * Starts the background work only on the first call. Stops itself when Bluetooth connect permission
+     * is missing.
+     *
+     * @param intent The start intent; null when the system restarts the service after killing it.
+     * @param flags Start flags supplied by the system; not used.
+     * @param startId Token identifying this start request; not used.
+     * @return [START_STICKY] while running, [START_NOT_STICKY] when stopping because of missing permission.
      */
     override fun onStartCommand(
         intent: Intent?,
@@ -72,7 +87,7 @@ class BudsService : Service() {
         return START_STICKY
     }
 
-    /** Stops the phone ringer and the ring notification, then cancels all background work. */
+    /** Stops ringing and cancels all background work. */
     override fun onDestroy() {
         app.phoneRinger.stop()
         cancelRingNotification()
@@ -108,7 +123,7 @@ class BudsService : Service() {
     /**
      * Reacts to a connection or earbud state change.
      *
-     * Any pending reconnect is cancelled first. Stops the service when find-my-phone is off or the
+     * Any pending reconnect is canceled first. Stops the service when find-my-phone is off or the
      * app cannot use Bluetooth; schedules a reconnect with backoff when disconnected.
      */
     private fun onStateChanged(ui: BudsUiState) {
@@ -133,7 +148,7 @@ class BudsService : Service() {
         reconnectAttempts++
         reconnectJob =
             scope.launch {
-                delay(delayMs)
+                delay(delayMs.milliseconds)
                 app.repository.reconnect()
             }
     }
@@ -219,7 +234,11 @@ class BudsService : Service() {
         /** Intent action that stops the phone ringer from the ring notification. */
         const val ACTION_STOP_RING = "dev.openbuds.app.action.STOP_RING"
 
-        /** Starts the service in the foreground. Failures are logged and never thrown. */
+        /**
+         * Starts the service in the foreground. Failures are logged and never thrown.
+         *
+         * @param context Context used to start the service.
+         */
         fun start(context: Context) {
             try {
                 ContextCompat.startForegroundService(context, Intent(context, BudsService::class.java))
@@ -228,7 +247,11 @@ class BudsService : Service() {
             }
         }
 
-        /** Stops the service. */
+        /**
+         * Stops the service, which also stops ringing through [onDestroy].
+         *
+         * @param context Context used to stop the service.
+         */
         fun stop(context: Context) {
             context.stopService(Intent(context, BudsService::class.java))
         }

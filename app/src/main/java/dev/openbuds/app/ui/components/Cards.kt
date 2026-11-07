@@ -13,6 +13,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
+/**
+ * Show a settings card with an optional section title.
+ *
+ * The card fills the available width and uses the surface container color with no elevation.
+ * The [content] is laid out in a [Column] below the title.
+ *
+ * @param title section header shown above the content, or null to omit it
+ * @param content column content rendered below the optional title
+ */
 @Composable
 fun SettingsCard(
     title: String?,

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Rings the phone at full alarm volume so the user can locate it.
@@ -39,7 +40,7 @@ class PhoneRinger(
 
     private val _isRinging = MutableStateFlow(false)
 
-    /** Whether the phone is currently ringing. */
+    /** Whether the phone is currently ringing. Updated on the thread that calls [start] or [stop]. */
     val isRinging: StateFlow<Boolean> = _isRinging.asStateFlow()
 
     private var player: MediaPlayer? = null
@@ -47,9 +48,10 @@ class PhoneRinger(
     private var autoStopJob: Job? = null
 
     /**
-     * Starts ringing at maximum alarm volume with vibration and schedules an automatic stop.
+     * Starts ringing at full alarm volume with vibration.
      *
-     * No-op if already ringing. On any platform failure the ringer stays silent and [isRinging] remains false.
+     * Schedules an automatic stop after [AUTO_STOP_MS]. No-op if already ringing. On any platform failure
+     * the ringer stays silent and [isRinging] remains false.
      */
     fun start() {
         if (_isRinging.value) return
@@ -65,15 +67,15 @@ class PhoneRinger(
         _isRinging.value = true
         autoStopJob =
             scope.launch {
-                delay(AUTO_STOP_MS)
+                delay(AUTO_STOP_MS.milliseconds)
                 stop()
             }
     }
 
     /**
-     * Stops playback and vibration, restores the previous alarm volume and cancels the auto-stop.
+     * Stops playback and vibration and restores the previous alarm volume.
      *
-     * Safe to call when not ringing.
+     * Also cancels the pending auto-stop. Safe to call when not ringing.
      */
     fun stop() {
         autoStopJob?.cancel()
@@ -92,7 +94,12 @@ class PhoneRinger(
         _isRinging.value = false
     }
 
-    /** Starts ringing if idle, otherwise stops it. */
+    /**
+     * Starts ringing if idle, otherwise stops it.
+     *
+     * Used for find-my-phone requests from the earbuds (0x0502 data 5), which the protocol treats as a
+     * toggle; see 'Unsolicited frames (0x05xx)' in docs/PROTOCOL.md.
+     */
     fun toggle() {
         if (_isRinging.value) stop() else start()
     }
@@ -139,7 +146,7 @@ class PhoneRinger(
                 ?.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
                 ?.firstOrNull { it.type == AudioDeviceInfo.TYPE_BUILTIN_SPEAKER }
         if (speaker == null) {
-            Log.d({ "PhoneRinger found no built-in speaker" })
+            Log.d { "PhoneRinger found no built-in speaker" }
             return
         }
         mp.setPreferredDevice(speaker)

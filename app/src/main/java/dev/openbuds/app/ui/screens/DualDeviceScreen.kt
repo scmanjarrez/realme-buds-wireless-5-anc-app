@@ -35,7 +35,19 @@ private const val ACTION_REMOVE = 2
 private const val STATE_CONNECTING = 1
 private const val STATE_CONNECTED = 2
 
-/** Dual-device settings: the feature switch and the list of paired devices with their actions. */
+/**
+ * Show dual-device settings: the feature switch and the paired devices with their actions.
+ *
+ * The switch turns [Feature.DUAL_CONNECTION] on or off through [BudsViewModel.setFeature]. Tapping
+ * another device opens a sheet with connect, disconnect or remove actions. These are sent as the
+ * multi-connect command `0x040b` through [BudsViewModel.multiConnect]. The earbuds may take more
+ * than 2 s to answer `0x040b` (see 'Settings (0x04xx)' in docs/PROTOCOL.md). The row for this phone is not
+ * actionable.
+ *
+ * @param buds Current earbud state, including feature flags and the paired device list.
+ * @param viewModel ViewModel for refresh state, feature switch and multi-connect commands.
+ * @param onBack Called when the back button in the scaffold is pressed.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DualDeviceScreen(

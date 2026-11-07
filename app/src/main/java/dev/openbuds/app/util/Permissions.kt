@@ -14,10 +14,12 @@ import androidx.core.content.ContextCompat
 const val BLUETOOTH_CONNECT_PERMISSION = "android.permission.BLUETOOTH_CONNECT"
 
 /**
- * Returns true when Bluetooth connect access is granted.
+ * Return true when Bluetooth connect access is granted.
  *
  * Runtime permission only exists on Android 12 (API 31) and later; older
  * versions always return true.
+ *
+ * @return true if the permission is granted or not required on this API level.
  */
 fun Context.hasBluetoothConnect(): Boolean =
     Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||

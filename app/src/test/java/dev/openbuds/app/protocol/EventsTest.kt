@@ -22,6 +22,21 @@ class EventsTest {
     }
 
     @Test
+    fun findPhoneRequestRingDecodesActionFive() {
+        assertEquals(BudsEvent.FindPhoneRequest(5), Events.parse(Frame(Cmd.FIND_PHONE_REQUEST, 0, bytes(0x05))))
+    }
+
+    @Test
+    fun findPhoneRequestStopDecodesActionSix() {
+        assertEquals(BudsEvent.FindPhoneRequest(6), Events.parse(Frame(Cmd.FIND_PHONE_REQUEST, 0, bytes(0x06))))
+    }
+
+    @Test
+    fun findPhoneRequestWithoutDataDecodesActionMinusOne() {
+        assertEquals(BudsEvent.FindPhoneRequest(-1), Events.parse(Frame(Cmd.FIND_PHONE_REQUEST, 0, bytes())))
+    }
+
+    @Test
     fun batteryReturnsLevelFromLastPayloadByte() {
         assertEquals(BudsEvent.Battery(0x55), Events.parse(notify(0x01, 0x00, 0x55)))
     }

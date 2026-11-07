@@ -1,29 +1,33 @@
 package dev.openbuds.app.protocol
 
-/** Ids of the spontaneous events (first data byte of a 0x0204 frame). */
+/**
+ * Ids of the spontaneous events (first data byte of a 0x0204 frame).
+ *
+ * The earbuds only send the events the app registered with 0x0205. See 'Events' in docs/PROTOCOL.md.
+ */
 object EventId {
-    /** Battery level report. */
+    /** Battery level report. Wire value 0x01, confirmed. */
     const val BATTERY = 0x01
 
-    /** Device state values. */
+    /** Earbud status change (in or out). Wire value 0x02, unconfirmed (never received). */
     const val STATE = 0x02
 
-    /** Noise control report. */
+    /** Noise control report. Wire value 0x03, confirmed. */
     const val NOISE = 0x03
 
-    /** Fit test result. */
+    /** Fit test result. Wire value 0x04, confirmed. */
     const val FIT_TEST = 0x04
 
-    /** Dual device change; the caller reloads its state. */
+    /** Dual device change; the caller reloads its state. Wire value 0x06, unconfirmed. */
     const val DUAL_DEVICE = 0x06
 
-    /** Unidentified event. */
+    /** Unidentified event, layout unknown. Wire value 0x0d. */
     const val UNKNOWN_0D = 0x0d
 
-    /** Button interaction. */
+    /** Button interaction (ANC button, taps, hold). Wire value 0xf1, unconfirmed. */
     const val INTERACTION = 0xf1
 
-    /** Unidentified event. */
+    /** Unidentified event, layout unknown. Wire value 0xf4. */
     const val UNKNOWN_F4 = 0xf4
 
     /** All known event ids, in protocol order. */
@@ -31,33 +35,38 @@ object EventId {
         listOf(BATTERY, STATE, NOISE, FIT_TEST, DUAL_DEVICE, UNKNOWN_0D, INTERACTION, UNKNOWN_F4)
 }
 
-/** Result of a fit test for one earbud. */
+/**
+ * Result of a fit test for one earbud.
+ *
+ * Raw codes are the status values of event 0x04. See 'Events' in docs/PROTOCOL.md.
+ */
 enum class FitStatus {
-    /** The seal is not ideal; the user should try another ear tip. */
+    /** The seal is not ideal (raw code 0). Also reported when the earbud is not in the ear. */
     NOT_IDEAL,
 
-    /** The seal is good. */
+    /** The seal is good (raw code 1). */
     GOOD,
 
-    /** The fit test failed (code 2 or 3). */
+    /** The fit test failed (raw code 2 or 3). */
     FAILED,
 
-    /** The earbud was not inserted in the ear. */
+    /** The earbud was not inserted in the ear (raw code 4, never seen on the device). */
     NOT_INSERTED,
 
-    /** The test was interrupted by the app. */
+    /** The test was interrupted by the app (raw code 5). */
     INTERRUPTED,
 
     /** Unknown or missing status code. */
     UNKNOWN,
     ;
 
-    /** Maps the raw status codes sent by the earbuds to a [FitStatus]. */
+    /** Conversion of the raw fit test codes sent by the earbuds. */
     companion object {
         /**
-         * Converts a raw fit test code.
+         * Convert a raw fit test code to a [FitStatus].
          *
-         * @param code raw code: 0 not ideal, 1 good, 2 or 3 failed, 4 not inserted, 5 interrupted by the app.
+         * @param code raw code: 0 not ideal, 1 good, 2 or 3 failed, 4 not inserted,
+         *   5 interrupted by the app.
          * @return the matching status, or [UNKNOWN] for any other code.
          */
         fun fromCode(code: Int): FitStatus =
@@ -74,27 +83,43 @@ enum class FitStatus {
 
 /** A decoded spontaneous event sent by the earbuds. */
 sealed interface BudsEvent {
-    /** Battery level, 0..255 as reported. */
+    /**
+     * Battery level report.
+     *
+     * @property level battery level in percent, 0..255 as reported.
+     */
     data class Battery(
         val level: Int,
     ) : BudsEvent
 
-    /** State values keyed by type. */
+    /**
+     * Device state values.
+     *
+     * @property values state value per type id, as reported.
+     */
     data class State(
         val values: Map<Int, Int>,
     ) : BudsEvent
 
-    /** Noise control values keyed by type. */
+    /**
+     * Noise control values.
+     *
+     * @property values value per type id. A one-byte payload is stored as type 1, the mode.
+     */
     data class Noise(
         val values: Map<Int, Int>,
     ) : BudsEvent
 
-    /** Fit test status keyed by device type. */
+    /**
+     * Fit test status of each earbud.
+     *
+     * @property results raw fit test code per device type (1 left, 2 right).
+     */
     data class FitTest(
         val results: Map<Int, Int>,
     ) : BudsEvent {
         /**
-         * Returns the fit status of one earbud.
+         * Return the fit status of one earbud.
          *
          * @param deviceType 1 for the left earbud, 2 for the right earbud.
          * @return the status, or [FitStatus.UNKNOWN] if the device type is missing from [results].
@@ -108,13 +133,24 @@ sealed interface BudsEvent {
     /**
      * Find-my-phone request sent by the earbuds (raw action byte of cmd 0x0502).
      *
+     * See 'Unsolicited frames (0x05xx)' in docs/PROTOCOL.md.
+     *
      * @property action raw action: 5 ring (toggle), 6 stop, -1 missing.
      */
     data class FindPhoneRequest(
         val action: Int,
     ) : BudsEvent
 
-    /** Button interaction; [options] are little-endian 16-bit values. */
+    /**
+     * Button interaction. The layout comes from the realme Link APK and was never seen in captures.
+     *
+     * @property deviceType device type byte from the payload.
+     * @property button button byte from the payload.
+     * @property action action byte from the payload.
+     * @property function function byte from the payload.
+     * @property scene scene byte from the payload; meaning unknown.
+     * @property options little-endian 16-bit values read from the rest of the payload.
+     */
     data class Interaction(
         val deviceType: Int,
         val button: Int,
@@ -124,7 +160,12 @@ sealed interface BudsEvent {
         val options: List<Int>,
     ) : BudsEvent
 
-    /** Event with an unknown id or a malformed payload. */
+    /**
+     * Event with an unknown id or a malformed payload.
+     *
+     * @property id event id, the first data byte of the notification.
+     * @property payload unsigned payload bytes that follow the id.
+     */
     data class Unknown(
         val id: Int,
         val payload: List<Int>,
@@ -144,12 +185,17 @@ object Events {
     private const val BYTE_BITS = 8
 
     /**
-     * Decodes a 0x0204 frame.
+     * Decode a 0x0204 notification frame or a 0x0502 find-phone request.
      *
-     * @return null if [frame] is not a notification or has no data. Unknown ids and malformed payloads
-     *   are returned as [BudsEvent.Unknown].
+     * @param frame received frame.
+     * @return null if [frame] is neither a 0x0204 notification with data nor a 0x0502 request. Unknown ids
+     *   and malformed payloads are returned as [BudsEvent.Unknown]. A 0x0502 frame without data returns
+     *   a [BudsEvent.FindPhoneRequest] with action -1.
      */
     fun parse(frame: Frame): BudsEvent? {
+        if (frame.cmd == Cmd.FIND_PHONE_REQUEST) {
+            return BudsEvent.FindPhoneRequest(frame.data.firstOrNull()?.toUnsigned() ?: -1)
+        }
         if (frame.cmd != Cmd.NOTIFY || frame.data.isEmpty()) return null
         val id = frame.data[0].toUnsigned()
         val payload = frame.data.unsignedFrom(1)
@@ -165,8 +211,11 @@ object Events {
     }
 
     /**
-     * Decodes the response of 0x0200 (data = status, n, ids...).
+     * Decode the response of 0x0200, the supported events query.
      *
+     * The response data is status, n, then n event ids.
+     *
+     * @param frame response frame of 0x0200.
      * @return the supported event ids, or an empty list if the response is malformed or the status is not OK.
      */
     fun parseSupported(frame: Frame): List<Int> {
@@ -178,9 +227,10 @@ object Events {
     }
 
     /**
-     * Data for 0x0205 (register events): n, ids...
+     * Build the data of 0x0205 (register events): n, ids...
      *
      * @param ids event ids to register.
+     * @return the request data, one byte for the count followed by one byte per id.
      */
     fun registerData(ids: List<Int>): ByteArray {
         val out = ByteArray(COUNT_SIZE + ids.size)
@@ -247,7 +297,7 @@ object Events {
     }
 
     /**
-     * Reads a count byte followed by that many (type, value) pairs.
+     * Read a count byte followed by that many (type, value) pairs.
      *
      * @return the map, or null if the payload is empty or shorter than the declared count.
      */

@@ -42,7 +42,11 @@ import dev.openbuds.app.ui.components.NavRow
 import dev.openbuds.app.ui.components.SettingsCard
 import dev.openbuds.app.ui.components.SwitchRow
 
-/** EQ id reported by the earbuds when the custom EQ is active. */
+/**
+ * Active EQ id of the custom equalizer, as reported by the earbuds. Wire value 0x04.
+ *
+ * See 'Queries (0x01xx)' in docs/PROTOCOL.md for the active-EQ query.
+ */
 private const val EQ_CUSTOM = 0x04
 
 /** Dynamic audio sliders: protocol type to label, in display order. */
@@ -65,7 +69,15 @@ private val ANC_LEVELS =
 /** The three segments of the noise-control selector. */
 private enum class NoiseSegment { ANC, OFF, TRANSPARENCY }
 
-/** Home screen: header with battery and firmware, plus noise, sound and other settings. */
+/**
+ * Show the home screen with battery, firmware and setting cards.
+ *
+ * Pull to refresh reloads the earbud state through [BudsViewModel.reload].
+ *
+ * @param buds current earbud state; null values fall back to defaults or hide their row.
+ * @param viewModel receives every setting change made from the cards.
+ * @param onNavigate called with the route to open when a row that opens a sub-screen is tapped.
+ */
 @Composable
 fun HomeScreen(
     buds: BudsState,
@@ -124,7 +136,7 @@ private fun Header(buds: BudsState) {
     }
 }
 
-/** Maps a noise-mode value to its segment; null when unknown. */
+/** Map a noise-mode value to its segment; null when unknown. */
 private fun segmentOf(noise: Int?): NoiseSegment? =
     when (noise) {
         Noise.NORMAL -> NoiseSegment.OFF
@@ -315,7 +327,7 @@ private fun FeatureSwitchRow(
     )
 }
 
-/** String resource for the EQ preset [preset]; null when unknown or not readable. */
+/** Return the label for EQ [preset], or null when unknown or unreadable. */
 private fun eqPresetLabel(preset: Int?): Int? =
     when (preset) {
         Eq.NATURE_BALANCE -> R.string.eq_preset_nature_balance

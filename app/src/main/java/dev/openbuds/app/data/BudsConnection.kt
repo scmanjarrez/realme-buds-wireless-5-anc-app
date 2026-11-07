@@ -27,16 +27,30 @@ import java.io.IOException
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * RFCOMM connection to the earbuds.
  *
- * Connection strategies are tried in order: standard SPP UUID, Qualcomm UUID (used by realme Link)
- * and, as a last resort, direct RFCOMM channel 1. A strategy succeeds when the socket connects and
- * the status query receives a protocol response.
+ * Lifecycle: [connect] tries each strategy in order: standard SPP UUID, Qualcomm UUID (used by
+ * realme Link) and, as a last resort, direct RFCOMM channel 1. A strategy succeeds when the socket
+ * connects and the status query ([Cmd.QUERY_STATUS]) receives a protocol response. A socket that
+ * connects without a protocol response is closed before the next strategy starts. On success,
+ * [isConnected] becomes true
+ * and a reader coroutine is launched in [scope]. [close], or the reader hitting end-of-stream or an
+ * IO error, closes the socket and sets [isConnected] back to false.
  *
- * Responses to pending requests are matched by sequence number; every other frame is emitted
- * through [notifications].
+ * Threading: [connect] and [request] switch to [Dispatchers.IO] internally, so they are main-safe.
+ * The reader runs on [Dispatchers.IO] in [scope]. Writes are serialized by an internal [Mutex].
+ * Responses are matched to waiters through a concurrent map keyed by sequence number. All other
+ * frames are emitted through [notifications] without suspending the reader.
+ *
+ * Timeouts: a request waits up to 2 s for its response. Multi-connect requests wait up to 10 s,
+ * because the earbuds answer them only after the peer disconnects. A timeout or an IO error makes
+ * [request] return null.
+ *
+ * @param device Bonded Bluetooth device to connect to.
+ * @param scope Scope that owns the reader coroutine. It must outlive the connection.
  */
 class BudsConnection(
     private val device: BluetoothDevice,
@@ -48,7 +62,12 @@ class BudsConnection(
             onBufferOverflow = BufferOverflow.DROP_OLDEST,
         )
 
-    /** Unsolicited frames: non-responses, or responses with no pending request. */
+    /**
+     * Unsolicited frames: non-responses, or responses with no pending request.
+     *
+     * Hot flow with no replay. Holds up to 16 frames for slow collectors; when the buffer is full
+     * the oldest frame is dropped.
+     */
     val notifications: SharedFlow<Frame> = _notifications.asSharedFlow()
 
     private val _isConnected = MutableStateFlow(false)
@@ -62,7 +81,13 @@ class BudsConnection(
     private val writeLock = Mutex()
     private val seq = AtomicInteger(SEQ_START)
 
-    /** Tries each strategy in order. Returns true on the first one that answers the protocol. */
+    /**
+     * Tries each connection strategy in order and stops at the first one that answers the protocol.
+     *
+     * Suspends while sockets connect and the status query runs. Runs on [Dispatchers.IO].
+     *
+     * @return True if a strategy answered the protocol, false if all of them failed.
+     */
     @RequiresPermission(BLUETOOTH_CONNECT_PERMISSION)
     suspend fun connect(): Boolean =
         withContext(Dispatchers.IO) {
@@ -149,8 +174,16 @@ class BudsConnection(
     }
 
     /**
-     * Sends a command and waits for its response: up to 2 s, or up to 10 s for multi-connect
-     * (the earbuds answer that command only after the peer is disconnected). Returns null on timeout or IO error.
+     * Sends a command and waits for the response with the same sequence number.
+     *
+     * Suspends until the response arrives or the timeout expires: 2 s by default, 10 s for
+     * [Cmd.SET_MULTI_CONNECT]. Writes are serialized through an internal [Mutex] and run on
+     * [Dispatchers.IO]. Sequence numbers are one byte, taken from a counter that starts at 0x40.
+     *
+     * @param cmd Command identifier, as defined in [Cmd].
+     * @param data Payload bytes that follow the frame header.
+     * @return The matching response frame, or null if the socket is not open, the request times
+     *   out, or the write fails with an IO error.
      */
     override suspend fun request(
         cmd: Int,
@@ -168,7 +201,7 @@ class BudsConnection(
                     s.outputStream.flush()
                 }
             }
-            return withTimeoutOrNull(timeoutMs) { deferred.await() }
+            return withTimeoutOrNull(timeoutMs.milliseconds) { deferred.await() }
         } catch (e: IOException) {
             Log.w({ "Send failed" }, e)
             return null
@@ -177,7 +210,12 @@ class BudsConnection(
         }
     }
 
-    /** Closes the connection. Pending requests will time out. */
+    /**
+     * Closes the active socket and sets [isConnected] to false.
+     *
+     * Safe to call when not connected. Pending requests are not canceled. They fail when their
+     * timeout expires.
+     */
     fun close() {
         val s = socket
         socket = null

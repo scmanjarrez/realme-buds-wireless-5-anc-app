@@ -6,7 +6,6 @@ import android.bluetooth.BluetoothManager
 import android.content.Context
 import androidx.annotation.RequiresPermission
 import dev.openbuds.app.protocol.BudsEvent
-import dev.openbuds.app.protocol.Cmd
 import dev.openbuds.app.protocol.EventId
 import dev.openbuds.app.protocol.Events
 import dev.openbuds.app.util.BLUETOOTH_CONNECT_PERMISSION
@@ -31,12 +30,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Owns the single [BudsConnection] and publishes [BudsUiState].
  *
  * Commands are applied optimistically, then the real state is re-read from the earbuds. Errors
  * are never shown to the user; failed commands simply restore the real value on reload.
+ *
+ * @param context Android context; only its application context is kept.
  */
 class BudsRepository(
     private val context: Context,
@@ -52,13 +54,21 @@ class BudsRepository(
     private val pending = AtomicInteger(0)
     private val _state = MutableStateFlow(BudsUiState())
 
-    /** Current connection lifecycle and earbud state. */
+    /**
+     * Current connection lifecycle and earbud state.
+     *
+     * The `buds` field is null while no earbud state has been loaded.
+     */
     val state: StateFlow<BudsUiState> = _state.asStateFlow()
 
     private val _events =
         MutableSharedFlow<BudsEvent>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
-    /** Decoded earbud events the UI or service may react to, such as fit test results and find-phone requests. */
+    /**
+     * Decoded earbud events such as fit test results and find-phone requests.
+     *
+     * Buffers 8 events without replay; the oldest is dropped on overflow.
+     */
     val events: SharedFlow<BudsEvent> = _events.asSharedFlow()
 
     @Volatile
@@ -91,7 +101,13 @@ class BudsRepository(
         }
     }
 
-    /** Looks for bonded earbuds and connects to the only one, or asks the user to choose. */
+    /**
+     * Look for bonded earbuds and connect to the only one.
+     *
+     * Publishes [ConnectionState.ChooseDevice] when several match. Does nothing while already connecting
+     * or connected. Publishes [ConnectionState.NeedsPermission], [ConnectionState.BluetoothOff] or
+     * [ConnectionState.NoDevices] when a precondition fails.
+     */
     fun refresh() {
         val current = _state.value.connection
         if (current is ConnectionState.Connecting || current is ConnectionState.Connected) return
@@ -117,7 +133,14 @@ class BudsRepository(
         }
     }
 
-    /** Connects to the bonded earbuds with [address], replacing any current connection. */
+    /**
+     * Connect to the bonded earbuds at [address].
+     *
+     * Replaces any current connection. Falls back to [refresh] when no bonded device has that address.
+     * Publishes [ConnectionState.NeedsPermission] or [ConnectionState.BluetoothOff] when a precondition fails.
+     *
+     * @param address Bluetooth address of a bonded earbud device.
+     */
     fun select(address: String) {
         if (!appContext.hasBluetoothConnect()) {
             publish(ConnectionState.NeedsPermission)
@@ -141,7 +164,7 @@ class BudsRepository(
         }
     }
 
-    /** Closes the current connection and connects again to the last selected device. */
+    /** Reconnect to the last selected device, or [refresh] if none was selected. */
     fun reconnect() {
         val address = lastAddress
         if (address == null) {
@@ -151,14 +174,25 @@ class BudsRepository(
         }
     }
 
-    /** Re-reads the full earbud state and publishes it. */
+    /**
+     * Re-read the full earbud state and publish it.
+     *
+     * Suspends while an apply holds the internal mutex. Does nothing without a connection, and the
+     * result is dropped if applies are pending.
+     */
     suspend fun reload() {
         mutex.withLock { reloadLocked() }
     }
 
     /**
-     * Applies [command] to the earbuds after updating the state with [optimistic], then reloads the
-     * real state. Applies run one at a time.
+     * Apply [command] to the earbuds after showing [optimistic] in the state.
+     *
+     * Returns immediately; the command runs on a background queue. Applies run one at a time, in
+     * submission order. The real state is re-read once the queue drains. [optimistic] is skipped while
+     * no earbud state is loaded.
+     *
+     * @param command Command to send to the earbuds.
+     * @param optimistic Transform applied to the current earbud state before sending.
      */
     fun apply(
         command: Command,
@@ -168,9 +202,13 @@ class BudsRepository(
     }
 
     /**
-     * Like [apply], but sends all [commands] in order inside one mutex section and reloads the real
-     * state once at the end. Sending stops at the first command that fails; the remaining commands
-     * are skipped and the reload restores the real values.
+     * Send [commands] in order as one batch, then re-read the real state once.
+     *
+     * Like [apply], but all commands run in one mutex section. Sending stops at the first command that
+     * fails; the remaining commands are skipped and the reload restores the real values.
+     *
+     * @param commands Commands to send to the earbuds, in order.
+     * @param optimistic Transform applied to the current earbud state before sending.
      */
     fun applyAll(
         commands: List<Command>,
@@ -193,12 +231,6 @@ class BudsRepository(
                 }
             }
         }
-    }
-
-    /** Disconnects and publishes [ConnectionState.Disconnected]. */
-    fun close() {
-        releaseConnection()
-        publish(ConnectionState.Disconnected)
     }
 
     @RequiresPermission(BLUETOOTH_CONNECT_PERMISSION)
@@ -231,7 +263,7 @@ class BudsRepository(
                     if (connection === conn) {
                         publish(ConnectionState.Connected, buds)
                         val registered = BudsApi.registerEvents(conn)
-                        Log.d({ "Event registration acknowledged: $registered" })
+                        Log.d { "Event registration acknowledged: $registered" }
                     }
                 }
                 watch(conn)
@@ -239,7 +271,7 @@ class BudsRepository(
             }
     }
 
-    /** Routes spontaneous events from [conn] to [handle] until the connection is replaced or released. */
+    /** Route spontaneous events from [conn] to [handle] until the connection is replaced or released. */
     private fun listen(conn: BudsConnection) {
         eventJob?.cancel()
         eventJob =
@@ -248,32 +280,22 @@ class BudsRepository(
                     val event = Events.parse(frame)
                     if (event != null) {
                         handle(conn, event)
-                    } else if (frame.cmd == Cmd.FIND_PHONE_REQUEST) {
-                        Log.d({ "Find phone request: action=${frame.data.firstOrNull()}" })
-                        _events.tryEmit(
-                            BudsEvent.FindPhoneRequest(
-                                frame.data
-                                    .firstOrNull()
-                                    ?.toInt()
-                                    ?.and(0xff) ?: -1,
-                            ),
-                        )
                     } else {
-                        Log.d({ "Unhandled frame: $frame" })
+                        Log.d { "Unhandled frame: $frame" }
                     }
                 }
             }
     }
 
     /**
-     * Applies [event] to the state of [conn]. Battery and noise values are patched in place; other
+     * Apply [event] to the state of [conn]. Battery and noise values are patched in place; other
      * changes schedule a debounced reload. Events from a stale connection are ignored.
      */
-    private suspend fun handle(
+    private fun handle(
         conn: BudsConnection,
         event: BudsEvent,
     ) {
-        Log.d({ "Event from earbuds: $event" })
+        Log.d { "Event from earbuds: $event" }
         if (connection !== conn) return
         when (event) {
             is BudsEvent.Battery -> {
@@ -296,30 +318,29 @@ class BudsRepository(
                 _events.tryEmit(event)
             }
 
-            // Emitted from listen() (cmd 0x0502), not from 0x0204 events.
             is BudsEvent.FindPhoneRequest -> {
-                Unit
+                _events.tryEmit(event)
             }
 
             is BudsEvent.Unknown -> {
                 val hex = event.payload.joinToString("") { "%02x".format(it) }
-                Log.d({ "Unknown event 0x%02x payload=%s".format(event.id, hex) })
+                Log.d { "Unknown event 0x%02x payload=%s".format(event.id, hex) }
                 if (event.id in STATE_RELOAD_EVENT_IDS) scheduleReload()
             }
         }
     }
 
-    /** Restarts the reload timer; the reload runs once no other event arrives for [RELOAD_DEBOUNCE_MS]. */
+    /** Restart the reload timer; the reload runs once no other event arrives for [RELOAD_DEBOUNCE_MS]. */
     private fun scheduleReload() {
         reloadJob?.cancel()
         reloadJob =
             scope.launch {
-                delay(RELOAD_DEBOUNCE_MS)
+                delay(RELOAD_DEBOUNCE_MS.milliseconds)
                 reload()
             }
     }
 
-    /** Publishes [ConnectionState.Disconnected] when [conn] drops while it is the active connection. */
+    /** Publish [ConnectionState.Disconnected] when [conn] drops while it is the active connection. */
     private fun watch(conn: BudsConnection) {
         watchJob?.cancel()
         watchJob =
@@ -332,7 +353,7 @@ class BudsRepository(
             }
     }
 
-    /** Cancels pending work and closes the active connection without publishing. */
+    /** Cancel pending work and close the active connection without publishing. */
     private fun releaseConnection() {
         connectJob?.cancel()
         connectJob = null
@@ -347,7 +368,11 @@ class BudsRepository(
         old?.close()
     }
 
-    /** Re-reads the earbud state. Caller must hold [mutex]; a read is stale if applies are pending, so it is dropped. */
+    /**
+     * Re-read the earbud state. Caller must hold [mutex].
+     *
+     * The read is dropped if applies are pending, because it would be stale.
+     */
     private suspend fun reloadLocked() {
         val conn = connection ?: return
         val buds = BudsApi.readState(conn)
@@ -365,7 +390,7 @@ class BudsRepository(
     private fun bluetoothAdapter(): BluetoothAdapter? =
         appContext.getSystemService(BluetoothManager::class.java)?.adapter
 
-    /** Bonded devices whose name contains "buds", as in the legacy device selection. */
+    /** Return bonded devices whose name contains "buds", as in the legacy device selection. */
     @RequiresPermission(BLUETOOTH_CONNECT_PERMISSION)
     private fun bondedBuds(adapter: BluetoothAdapter): List<BluetoothDevice> =
         adapter.bondedDevices.filter { it.name?.contains("buds", ignoreCase = true) == true }
@@ -375,10 +400,10 @@ class BudsRepository(
         devices.map { BondedDevice(name = it.name.orEmpty(), address = it.address) }
 
     private companion object {
-        /** Quiet period after the last state-changing event before the earbud state is re-read. */
+        /** Quiet period, in milliseconds, after the last state-changing event before the earbud state is re-read. */
         const val RELOAD_DEBOUNCE_MS = 300L
 
-        /** Noise event type that carries the noise control mode. */
+        /** Key in [BudsEvent.Noise.values] that holds the noise control mode. */
         const val NOISE_MODE_TYPE = 1
 
         /** Event ids that signal a state change even when the payload is not decoded. */

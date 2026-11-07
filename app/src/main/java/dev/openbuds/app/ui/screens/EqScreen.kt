@@ -33,17 +33,31 @@ import dev.openbuds.app.ui.components.BudsScaffold
 import dev.openbuds.app.ui.components.LabeledSlider
 import dev.openbuds.app.ui.components.SettingsCard
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
-/** EQ id reported by the earbuds when the custom EQ is active. */
+/** EQ id the earbuds report while the custom EQ is active. Wire value 0x04. */
 private const val EQ_CUSTOM = 0x04
 
+/** Custom band gain range in dB, lower bound (0x0418 `min`); upper bound is [GAIN_MAX]. */
 private const val GAIN_MIN = -6
 private const val GAIN_MAX = 6
 
-/** Quiet period after the last local change before device state is copied into the draft. */
+/** Quiet period in milliseconds before device EQ state overwrites the local draft. */
 private const val QUIET_MS = 2000L
 
-/** EQ mode screen: four presets plus a custom six-band equalizer. */
+/**
+ * EQ mode screen: four presets plus a custom six-band equalizer.
+ *
+ * Presets are sent with 0x0406. Custom gains are sent with 0x0418 (create first if the earbuds
+ * have no custom EQ, then update). Related command 0x041b (dynamic sliders) is not used here.
+ * Device state is copied into the local draft only after [QUIET_MS] without local changes, so
+ * slider drags are not overwritten.
+ *
+ * @param buds current earbud state; `eq` selects the highlighted row and `customEq` seeds the draft.
+ * @param viewModel source of the EQ commands (`setEq`, `setCustomEq`, `resetCustomEq`) and of
+ * the refresh state and `reload` action.
+ * @param onBack called when the back navigation is used.
+ */
 @Composable
 fun EqScreen(
     buds: BudsState,
@@ -63,7 +77,7 @@ fun EqScreen(
         while (true) {
             val remaining = lastCommitMs.longValue + QUIET_MS - SystemClock.elapsedRealtime()
             if (remaining <= 0L) break
-            delay(remaining)
+            delay(remaining.milliseconds)
         }
         if (device != draft.toList()) {
             draft.indices.forEach { draft[it] = device.getOrElse(it) { 0 } }
