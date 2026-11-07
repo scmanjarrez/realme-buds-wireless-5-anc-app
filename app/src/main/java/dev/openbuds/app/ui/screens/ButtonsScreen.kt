@@ -1,0 +1,196 @@
+package dev.openbuds.app.ui.screens
+
+import androidx.annotation.StringRes
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.openbuds.app.R
+import dev.openbuds.app.data.BudsApi
+import dev.openbuds.app.data.BudsState
+import dev.openbuds.app.protocol.CycleBit
+import dev.openbuds.app.protocol.KeyFn
+import dev.openbuds.app.ui.BudsViewModel
+import dev.openbuds.app.ui.components.BudsScaffold
+import dev.openbuds.app.ui.components.NavRow
+import dev.openbuds.app.ui.components.SettingRow
+import dev.openbuds.app.ui.components.SettingsCard
+
+/** Button used by the earbud press gestures (legacy id 1). */
+private const val EARBUD_BUTTON = 1
+
+/** The noise-control cycle must keep at least this many modes selected. */
+private const val MIN_CYCLE_MODES = 2
+
+private enum class Gesture(
+    val action: Int,
+    @param:StringRes val label: Int,
+) {
+    SINGLE(1, R.string.buttons_single_press),
+    DOUBLE(2, R.string.buttons_double_press),
+    TRIPLE(3, R.string.buttons_triple_press),
+    HOLD(4, R.string.buttons_hold),
+}
+
+private data class FunctionOption(
+    val fn: Int,
+    @param:StringRes val label: Int,
+)
+
+private data class CycleOption(
+    val bit: Int,
+    @param:StringRes val label: Int,
+)
+
+private val functionOptions =
+    listOf(
+        FunctionOption(KeyFn.NONE, R.string.buttons_fn_none),
+        FunctionOption(KeyFn.PLAY_PAUSE, R.string.buttons_fn_play_pause),
+        FunctionOption(KeyFn.NEXT, R.string.buttons_fn_next),
+        FunctionOption(KeyFn.PREVIOUS, R.string.buttons_fn_previous),
+        FunctionOption(KeyFn.VOICE_ASSISTANT, R.string.buttons_fn_voice_assistant),
+        FunctionOption(KeyFn.GAME_MODE, R.string.home_game_mode),
+        FunctionOption(KeyFn.NOISE_CONTROL, R.string.home_noise_control),
+    )
+
+/** Functions offered for the earbud gestures; noise control is reserved for the noise button. */
+private val gestureOptions = functionOptions.filter { it.fn != KeyFn.NOISE_CONTROL }
+
+private val cycleOptions =
+    listOf(
+        CycleOption(CycleBit.NOISE_CANCELLATION, R.string.home_noise_anc),
+        CycleOption(CycleBit.OFF, R.string.home_noise_off),
+        CycleOption(CycleBit.TRANSPARENCY, R.string.home_noise_transparency),
+    )
+
+private fun functionLabel(fn: Int?): Int? = functionOptions.firstOrNull { it.fn == fn }?.label
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ButtonsScreen(
+    buds: BudsState,
+    viewModel: BudsViewModel,
+    onBack: () -> Unit,
+) {
+    var openGesture by remember { mutableStateOf<Gesture?>(null) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val refreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
+
+    BudsScaffold(
+        title = stringResource(R.string.home_button_settings),
+        onBack = onBack,
+        refreshing = refreshing,
+        onRefresh = viewModel::reload,
+    ) {
+        SettingsCard(title = stringResource(R.string.buttons_earbud_controls)) {
+            Gesture.entries.forEach { gesture ->
+                val fn = buds.keys[BudsApi.keyId(EARBUD_BUTTON, gesture.action)]
+                NavRow(
+                    title = stringResource(gesture.label),
+                    value = functionLabel(fn)?.let { stringResource(it) },
+                    onClick = { openGesture = gesture },
+                )
+            }
+        }
+
+        SettingsCard(title = stringResource(R.string.buttons_noise_title)) {
+            Text(
+                text = stringResource(R.string.buttons_noise_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+            val mask = buds.noiseCycle ?: 0
+            val locked = mask.countOneBits() == MIN_CYCLE_MODES
+            cycleOptions.forEach { option ->
+                val checked = (mask and option.bit) != 0
+                val enabled = !(locked && checked)
+                val toggle: () -> Unit = {
+                    val newMask = mask xor option.bit
+                    if (newMask.countOneBits() >= MIN_CYCLE_MODES) {
+                        viewModel.setNoiseCycle(newMask)
+                    }
+                }
+                SettingRow(
+                    title = stringResource(option.label),
+                    onClick = if (enabled) toggle else null,
+                    content = {
+                        Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
+                    },
+                )
+            }
+        }
+    }
+
+    openGesture?.let { gesture ->
+        val current = buds.keys[BudsApi.keyId(EARBUD_BUTTON, gesture.action)]
+        ModalBottomSheet(
+            onDismissRequest = { openGesture = null },
+            sheetState = sheetState,
+        ) {
+            Column(
+                modifier =
+                    Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(bottom = 16.dp),
+            ) {
+                Text(
+                    text = stringResource(gesture.label),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                )
+                gestureOptions.forEach { option ->
+                    val selected = current == option.fn
+                    Row(
+                        modifier =
+                            Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp)
+                                .selectable(
+                                    selected = selected,
+                                    role = Role.RadioButton,
+                                    onClick = {
+                                        viewModel.setKey(EARBUD_BUTTON, gesture.action, option.fn)
+                                        openGesture = null
+                                    },
+                                ).padding(horizontal = 24.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = selected, onClick = null)
+                        Spacer(Modifier.width(16.dp))
+                        Text(
+                            text = stringResource(option.label),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                    }
+                }
+                Spacer(Modifier.height(24.dp))
+            }
+        }
+    }
+}

@@ -22,6 +22,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "RealmeBuds"
+rootProject.name = "OpenBuds"
 include(":app")
- 

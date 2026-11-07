@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="findphone_description">Make your earbuds ring to help you find your phone, or ring your phone to find the earbuds.</string>
+    <string name="findphone_test_ring">Test ring</string>
+    <string name="findphone_stop">Stop</string>
+    <string name="findphone_battery_hint">If your phone does not ring while OpenBuds is closed, turn off battery optimization for OpenBuds in the system settings.</string>
+</resources>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="service_channel_connection">Earbud connection</string>
+    <string name="service_connected_title">Connected to earbuds</string>
+    <string name="service_connected_text">Find my phone and automatic reconnect are active</string>
+    <string name="service_ring_title">Earbuds are looking for your phone</string>
+    <string name="service_ring_text">Ringing your phone</string>
+</resources>

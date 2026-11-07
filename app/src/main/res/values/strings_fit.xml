@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="fit_description">Put both earbuds in your ears first, then tap Start. The test checks how well they seal.</string>
+    <string name="fit_start">Start</string>
+    <string name="fit_running">Testing… keep both earbuds in your ears</string>
+    <string name="fit_not_inserted">Put both earbuds in your ears</string>
+    <string name="fit_failed">The test could not finish</string>
+    <string name="fit_try_again">Try again</string>
+    <string name="fit_perfect">Perfect fit</string>
+    <string name="fit_left">Left earbud</string>
+    <string name="fit_right">Right earbud</string>
+    <string name="fit_good">Good seal</string>
+    <string name="fit_adjust">Adjust fit</string>
+    <string name="fit_unknown">Unknown</string>
+    <string name="fit_tip_left">Make sure the earbuds are in your ears. Adjust the left earbud until it sits snugly, then test again.</string>
+    <string name="fit_tip_right">Make sure the earbuds are in your ears. Adjust the right earbud until it sits snugly, then test again.</string>
+    <string name="fit_tip_both">Make sure the earbuds are in your ears. Adjust both earbuds until they sit snugly, then test again.</string>
+    <string name="fit_test_again">Test again</string>
+</resources>

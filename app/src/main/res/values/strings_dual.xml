@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dual_description">Connect to two devices at once and switch between them automatically.</string>
+    <string name="dual_your_devices">Your devices</string>
+    <string name="dual_no_other_devices">No other devices</string>
+    <string name="dual_state_this_phone">This phone</string>
+    <string name="dual_state_connected">Connected</string>
+    <string name="dual_state_connecting">Connecting</string>
+    <string name="dual_state_not_connected">Not connected</string>
+    <string name="dual_connect">Connect</string>
+    <string name="dual_disconnect">Disconnect</string>
+    <string name="dual_remove">Remove</string>
+    <string name="dual_cancel">Cancel</string>
+    <string name="dual_remove_title">Remove %1$s?</string>
+    <string name="dual_remove_message">This device will need to be paired again.</string>
+</resources>

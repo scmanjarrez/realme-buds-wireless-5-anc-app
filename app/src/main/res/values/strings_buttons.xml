@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="buttons_earbud_controls">Earbud controls</string>
+    <string name="buttons_single_press">Single press</string>
+    <string name="buttons_double_press">Double press</string>
+    <string name="buttons_triple_press">Triple press</string>
+    <string name="buttons_hold">Press and hold</string>
+    <string name="buttons_fn_none">None</string>
+    <string name="buttons_fn_play_pause">Play/pause</string>
+    <string name="buttons_fn_voice_assistant">Voice assistant</string>
+    <string name="buttons_fn_previous">Previous track</string>
+    <string name="buttons_fn_next">Next track</string>
+    <string name="buttons_noise_title">Noise control button</string>
+    <string name="buttons_noise_hint">Choose the modes the noise control button cycles through.</string>
+</resources>

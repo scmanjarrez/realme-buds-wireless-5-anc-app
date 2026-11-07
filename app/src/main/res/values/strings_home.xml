@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_title">realme Buds Wireless 5 ANC</string>
+    <string name="home_battery">%1$d%%</string>
+    <string name="home_firmware">Firmware %1$s</string>
+    <string name="home_noise_control">Noise control</string>
+    <string name="home_noise_anc">Noise cancellation</string>
+    <string name="home_noise_anc_short">Cancellation</string>
+    <string name="home_noise_off">Off</string>
+    <string name="home_noise_transparency">Transparency</string>
+    <string name="home_anc_smart">Smart</string>
+    <string name="home_anc_max">Max</string>
+    <string name="home_anc_moderate">Moderate</string>
+    <string name="home_anc_mild">Mild</string>
+    <string name="home_enhance_voices">Enhance voices</string>
+    <string name="home_smart_dewind">Smart de-wind</string>
+    <string name="home_sound">Sound</string>
+    <string name="home_eq_mode">EQ mode</string>
+    <string name="home_spatial_audio">Spatial audio</string>
+    <string name="home_dynamic_audio">Dynamic audio</string>
+    <string name="home_dynamic_low">Low</string>
+    <string name="home_dynamic_mid">Mid</string>
+    <string name="home_dynamic_high">High</string>
+    <string name="home_volume_enhancer">Volume enhancer</string>
+    <string name="home_other">Other</string>
+    <string name="home_game_mode">Game mode</string>
+    <string name="home_fit_test">Earbud fit test</string>
+    <string name="home_find_my_phone">Find my phone</string>
+    <string name="home_dual_device">Dual-device connection</string>
+    <string name="home_button_settings">Button settings</string>
+    <string name="home_auto_answer">Auto answer</string>
+</resources>

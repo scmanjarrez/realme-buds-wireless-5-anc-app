@@ -1,15 +1,16 @@
-# RealmeBuds
+# OpenBuds
 
-An open-source Android app to control the **realme Buds Wireless 5 ANC** without the official
-realme Link app and without any account.
+An open-source Android app (package `dev.openbuds.app`) to control the **realme Buds Wireless 5 ANC**
+without the official realme Link app and without any account.
+
+License: [MIT](LICENSE.md)
 
 ## Why this exists
 
 realme Link needs you to sign in with an account before you can use the earbuds' settings
-(noise control, EQ, button gestures...). In the author's case it even asked for a phone number
-just to pair and control a pair of headphones, after an update that could not be rolled back.
-Nothing about adjusting your own earbuds requires a cloud account, so this project talks to them
-directly over Bluetooth instead, so that you do not depend on the vendor app.
+(noise control, EQ, button gestures...). Nothing about adjusting your own earbuds requires 
+a cloud account, so this project talks to them directly over Bluetooth instead, so that you 
+do not depend on the vendor app.
 
 The app declares no `INTERNET` permission: it cannot reach any server.
 
@@ -19,18 +20,34 @@ Use it at your own risk. It only writes ordinary settings and never touches firm
 ## What it does
 
 - Reads and shows the current state: battery, firmware version, noise mode, EQ, toggles, buttons.
+- The screen updates by itself when the earbuds change something (ANC button, battery, dual-device).
+  Pull down on any screen to refresh.
 - Noise control: Off, Transparency, and the four noise-cancellation levels (Smart, Max, Moderate, Mild).
 - Enhance voices, Smart de-wind, Spatial audio, Dynamic audio (with its three frequency sliders),
-  Volume enhancer, Game mode, Auto answer, Find my phone.
+  Volume enhancer, Game mode, Auto answer.
+- Find my phone really works: with the setting on, pressing the earbuds' button rings the phone
+  (system alarm tone, phone speaker, up to 30 s; press again or tap Stop to silence it), even if
+  the app is closed. It runs as a foreground service with a persistent low-priority notification,
+  and it reconnects to the earbuds with a 5 s, 15 s, 60 s backoff.
 - EQ presets (Clear Vocals, Nature Balance, Clear Bass, Bass Boost) and a six-band custom
   equalizer. Moving a slider switches the earbuds to the custom EQ; one button resets it.
 - Button gestures: single, double, triple tap and touch-and-hold, plus which modes the
   noise-control button cycles through.
 - Dual-device connection: list of known devices, with connect, disconnect and remove.
-- Earbud fit test (it starts the test; showing the result is not implemented yet).
+- Earbud fit test: shows the result for each earbud, good seal or adjust fit (the same statuses
+  as realme Link).
 
 Tested with a realme Buds Wireless 5 ANC (it reports version text `1,2,1.1.0.56`) on Android 11.
 Other realme earbuds may share the protocol, but nothing else has been tested.
+
+## Permissions
+
+- **Bluetooth connect**: "Nearby devices" on Android 12 and later, to talk to the earbuds.
+- **Notifications**: Android 13 and later, asked when you switch Find my phone on.
+- **Foreground service**: keeps Find my phone working while the app is closed.
+- **Vibrate**.
+
+The app does not request `INTERNET`, and `allowBackup` is off.
 
 ## How it works
 
@@ -46,14 +63,18 @@ AA | len | 00 00 | cmd (u16 LE) | seq | dlen (u16 LE) | data
 
 A response repeats the command with bit 15 set and the same `seq`; its first data byte is the status.
 
-The code lives in `app/src/main/java/com/example/realmebuds/`:
+The code lives in `app/src/main/java/dev/openbuds/app/`:
 
-| file | role |
-|------|------|
-| `Protocol.kt` | command ids, setting values, and the frame builder / parser |
-| `BudsConnection.kt` | RFCOMM socket, a reader thread, and request/response matching by `seq` |
-| `BudsApi.kt` | reads the whole device state with the query commands |
-| `MainActivity.kt` | the UI (built in code, no XML layouts), debounced writes, state display |
+| package | role |
+|---------|------|
+| `protocol/` | `Protocol.kt`: frames, command ids, setting values. `Events.kt`: parsers for the earbuds' spontaneous events |
+| `data/` | `BudsConnection.kt`: RFCOMM socket and coroutines. `BudsApi.kt`: queries and commands. `BudsRepository.kt`: single owner of the connection and the UI state. `BudsUiState.kt` |
+| `service/` | `BudsService.kt`: foreground service. `PhoneRinger.kt`: rings the phone for Find my phone |
+| `ui/` | Compose + Material 3 (no XML layouts): `MainActivity.kt`, `BudsApp.kt` navigation, `BudsViewModel.kt`, `screens/`, `components/`, `theme/` |
+| `util/` | `Log.kt` (debug-only logging), `Permissions.kt` |
+| (root) | `OpenBudsApp.kt`: application class |
+
+Logs go to logcat with the tag `OpenBuds`, in debug builds only. Nothing technical is shown on screen.
 
 Connecting: the app looks for a paired device whose name contains "buds", then tries three ways
 to open the RFCOMM socket and keeps the first one that answers a status query: the standard
@@ -79,6 +100,31 @@ You need Android Studio (or the Android SDK plus a JDK).
 
 3. Pair the earbuds in Android's Bluetooth settings, close realme Link if it is running, and open
    the app. On Android 12 and later it asks for the "Nearby devices" permission.
+
+### Quality gate
+
+```bash
+./gradlew ktlintCheck testDebugUnitTest assembleDebug lint
+```
+
+This uses ktlint (`ktlint_official` style) and strict Android Lint. Warnings are errors: Kotlin
+warnings and Lint findings fail the build, and Lint also checks release builds.
+
+### Release build
+
+```bash
+./gradlew assembleRelease
+```
+
+R8 is enabled. The release APK is unsigned until you add your own signing config.
+
+## Troubleshooting
+
+- **Find my phone stops working with the app closed (Xiaomi/MIUI and other vendors):** some
+  vendors kill background services. Disable battery optimization for OpenBuds and allow autostart.
+- **The app cannot connect:** close realme Link. It competes for the Bluetooth socket.
+- **The fit test says "adjust fit" for an earbud:** the earbud may be dirty, or it may have the
+  wrong ear tip. Clean it, try another ear tip, and run the test again.
 
 ## Trying the protocol from a computer (Python)
 
@@ -144,9 +190,9 @@ Two things help a lot besides Frida:
 
 ## Privacy: do not commit captures
 
-Captures and bug reports contain personal data: phone numbers from the hands-free traffic, and the
-names and Bluetooth addresses of every device your earbuds know. The `.gitignore` excludes the
-usual file names, but check before you publish anything.
+Captures, bug reports and logcat exports contain personal data: phone numbers from the hands-free
+traffic, and the names and Bluetooth addresses of every device your earbuds know. The `.gitignore`
+excludes the usual file names, but check before you publish anything.
 
 ## Repository layout
 
@@ -161,10 +207,13 @@ observing how the earbuds behave.
 
 ## Known limitations
 
-- Pressing the earbuds' buttons, or other changes made on the earbuds themselves, do not refresh
-  the screen: the app does not register for the earbuds' notifications yet (press "Update state").
-- Find my phone can be switched on, but the app does not ring the phone when you press the button.
-- The earbud fit test result is not shown.
 - Parts of the vendor app that were not explored (its overflow menu, the sub-screens of Spatial
   audio) may use commands that are not documented.
-- Some UI text and code comments are still in Spanish.
+- Only tested on realme Buds Wireless 5 ANC and Android 11.
+- Find my phone does not start after a phone reboot until you open the app once.
+- No wear detection on this neckband model, so the fit test cannot tell "not inserted" from a bad seal.
+- The Python script (`debugging/buds_client.py`) still prints its messages in Spanish.
+
+## License
+
+OpenBuds is released under the MIT license (see LICENSE.md); it is an independent project and contains no code or assets from realme.

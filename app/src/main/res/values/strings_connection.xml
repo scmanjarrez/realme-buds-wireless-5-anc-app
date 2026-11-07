@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="connection_permission_title">Allow nearby devices access</string>
+    <string name="connection_permission_message">OpenBuds needs permission to find and connect to your earbuds over Bluetooth.</string>
+    <string name="connection_permission_action">Allow</string>
+    <string name="connection_bluetooth_off_title">Bluetooth is off</string>
+    <string name="connection_bluetooth_off_message">Turn on Bluetooth to connect to your earbuds.</string>
+    <string name="connection_bluetooth_off_action">Turn on Bluetooth</string>
+    <string name="connection_no_devices_title">No earbuds paired</string>
+    <string name="connection_no_devices_message">Pair your realme Buds Wireless 5 ANC in Bluetooth settings first.</string>
+    <string name="connection_no_devices_action">Open Bluetooth settings</string>
+    <string name="connection_choose_title">Choose your earbuds</string>
+    <string name="connection_unnamed_device">Unnamed earbuds</string>
+    <string name="connection_connecting_title">Connecting…</string>
+    <string name="connection_connecting_message">This only takes a moment.</string>
+    <string name="connection_disconnected_title">Earbuds not reachable</string>
+    <string name="connection_disconnected_message">Make sure they are in range and not in use by another app.</string>
+    <string name="connection_disconnected_action">Reconnect</string>
+</resources>

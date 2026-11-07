@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">RealmeBuds</string>
+    <string name="app_name">OpenBuds</string>
+    <string name="back">Back</string>
 </resources>

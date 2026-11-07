@@ -1,3 +1,8 @@
+# Claude
+.workflow/
+CLAUDE.md
+AGENTS.md
+
 # Gradle and build output
 .gradle/
 build/
@@ -34,6 +39,12 @@ rfcomm*.txt
 decoded_aa*.txt
 *.pcap
 *.pcapng
+# Android Studio logcat exports and build logs: they contain device and user data
+*.logcat
+lint*.txt
+assembleDebug.txt
+hs_err_pid*
+replay_pid*
 
 # Logs and heap dumps
 *.log

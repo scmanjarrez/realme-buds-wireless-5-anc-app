@@ -37,10 +37,9 @@ effect was checked on a real device.
 | 0x26 | Find my phone             | high |
 | 0x08 | Auto answer               | high |
 
-Find my phone (0x26): while enabled, pressing the center button on the earbuds makes the phone
-ring. The setting only arms the feature on the earbuds. The ringing itself is presumably done by
-the phone-side app when the earbuds send an event; that event is not decoded, so the Android app
-in this repository can enable the feature but does not ring the phone.
+Find my phone (0x26): while enabled, pressing the center button on the earbuds makes the earbuds
+send an unsolicited `cmd 0x0502` with data[0] = 5, and the app rings the phone. See the 0x0502
+entry under Notifications.
 
 ### 0x0404 noise control `[action, type, value]`
 - `01 01 20` Smart, `01 01 08` Max, `01 01 10` Moderate, `01 01 04` Mild. The order in the capture
@@ -116,28 +115,45 @@ no response on this model; use 0x012c instead.
 ## Notifications (partially decoded)
 The earbuds only send unsolicited notifications for the events the host has registered.
 - 0x0200 query: response `n` + supported event ids (this model: 01 02 03 04 05 06 0d f1 f4).
-- 0x0205 register: request `n, id1..idn`, response `n, (id, status) * n` (status 00 = OK). The
+- 0x0205 register: request `n, id1..idn`, response `n, (id, status) * n` (status 00 = OK). Registration
+  works from this app: query 0x0200, register the known ids with 0x0205, and the earbuds ack OK. The
   vendor app registers `01 02 03 04 05 06 f4 0d f1`.
-- A notification is a frame with `cmd` 0x0204 and header `08 00`; the data starts with the event id.
+- A notification is a frame with `cmd` 0x0204 and header `08 00`; the data is the event id followed by the payload.
 
-Event ids, from the APK's handlers (payload layouts are mostly undecoded):
+Event ids. "confirmed" means seen in a real device capture; everything else comes from the realme Link APK and is unconfirmed.
 
 | event | meaning |
 |-------|---------|
-| 0x01 | battery: same payload as the 0x0106 response (seen: `01 01 01 5a`, i.e. 90 %) |
-| 0x02 | earbud status change (in / out) |
-| 0x03 | noise-control mode changed (seen: `03 04 01 10`) |
-| 0x04 | earbud fit test result (seen: `04 01 00 02 00`) |
-| 0x06 | dual-device connection change (list like the 0x0112 response) |
-| 0x0e | ear scan result |
-| 0xf1 | user interaction (taps / button presses); presumably what "Find my phone" reacts to |
+| 0x01 | battery (confirmed): last payload byte is the level in %, seen 70 |
+| 0x02 | earbud status change (in / out). Registered, never received in captures; APK layout `n, (type, value) * n` |
+| 0x03 | noise-control mode (confirmed): payload `type value`, where value is the mode (seen 0x20 smart ANC, 0x01 off), sent on every button press. Seen 2 s after smart ANC engages: payload `04 01 10`, probably the ANC level applied by smart mode (0x10 = moderate; unconfirmed) |
+| 0x04 | fit test (confirmed): payload `(deviceType, status) * 2`; deviceType 1 = left, 2 = right. Status (from the APK dialog): 0 not ideal, 1 good, 2 and 3 failed / try again, 4 earbuds not inserted, 5 interrupted by the app (ignore). Both 1 = perfect fit. Seen `{1=0,2=0}` and `{1=1,2=0}` |
+| 0x06 | dual-device connection change. Registered, never received in captures; layout like the 0x0112 response. Follows a 0x040b command about 2 s later |
+| 0x0d | registered, never received in captures; layout unknown |
+| 0x0e | ear scan result (APK only, not registered; layout undecoded) |
+| 0xf1 | user interaction (ANC button, multifunction taps / hold). Registered, never received in captures; APK layout `deviceType, button, action, function, scene, [u16 options]` |
+| 0xf4 | registered, never received in captures; layout unknown |
 
-The Android app in this repository does not register for these events, so it only sees changes
-when it polls (pressing a button on the earbuds does not refresh its screen).
+Fit test (0x04) notes: the earbuds (neckband model) report no wear status, so "earbud not in the ear"
+and "bad seal" both come as status 0. Status 4 was never seen on the device. When the vendor app's
+test dialog is dismissed while a test is running, it sends `0x0405 00`; this app does the same.
+
+Other unsolicited frames (not 0x0204):
+- 0x0502 FIND PHONE request from the earbuds: data[0] = 5 starts ringing the phone. Sent when Find my
+  phone (0x0403 id 0x26) is on and the button is pressed. No event registration is needed and the
+  vendor app sends no response. Observed: two consecutive presses both sent `05`, never `06`, so 05
+  is treated as a toggle (the second press stops the ringing). `06` = stop appears only in the vendor
+  app code.
+
+Dual-device timing:
+- 0x040b (connect 1, disconnect 0, remove 2) can take more than 2 s to answer: the 0x840b response
+  with data 00 arrived late. Use a longer timeout; this app uses 10 s.
 
 ## Open items
-- Notification payloads: battery is understood; the rest (mode changed, fit test result, user
-  interaction, device list) are not decoded.
+- Meaning of the `04 01 10` payload in the 0x03 event (ANC level applied by smart mode?). Unconfirmed.
+- 0x02, 0x06, 0x0d, 0xf1 and 0xf4 were never received in captures, so their layouts are unverified
+  (0x0d and 0xf4 layouts are unknown).
+- What ends the find-phone ringing besides 0x0502 data 6, and whether the earbuds time it out.
 - The undecoded queries above.
 - The custom equalizer needs no delete command in practice: the vendor app appears to handle
   removal locally.
