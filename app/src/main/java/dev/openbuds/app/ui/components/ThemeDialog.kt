@@ -11,6 +11,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.BrightnessAuto
+import androidx.compose.material.icons.outlined.Contrast
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material3.AlertDialog
@@ -82,6 +83,14 @@ fun ThemeDialog(
                     label = stringResource(R.string.theme_dark),
                     icon = Icons.Outlined.DarkMode,
                     selected = current == ThemeMode.DARK,
+                    onSelect = onSelect,
+                    onDismiss = onDismiss,
+                )
+                ThemeOption(
+                    mode = ThemeMode.BLACK,
+                    label = stringResource(R.string.theme_black),
+                    icon = Icons.Outlined.Contrast,
+                    selected = current == ThemeMode.BLACK,
                     onSelect = onSelect,
                     onDismiss = onDismiss,
                 )

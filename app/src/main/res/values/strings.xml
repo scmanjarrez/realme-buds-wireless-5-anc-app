@@ -1,8 +1,10 @@
 <resources>
     <string name="app_name">OpenBuds</string>
     <string name="back">Back</string>
+    <string name="refresh">Refresh</string>
     <string name="theme_title">Theme</string>
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="theme_black">Black</string>
 </resources>

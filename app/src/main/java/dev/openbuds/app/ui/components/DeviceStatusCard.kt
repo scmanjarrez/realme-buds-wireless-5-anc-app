@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import dev.openbuds.app.R
+import dev.openbuds.app.ui.theme.LocalCardStyle
 
 /**
  * Header card that shows the connected earbuds: device icon, name, connection status
@@ -43,14 +44,16 @@ fun DeviceStatusCard(
     battery: Int?,
     modifier: Modifier = Modifier,
 ) {
+    val cardStyle = LocalCardStyle.current
     Card(
         modifier = modifier,
         shape = RoundedCornerShape(24.dp),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                containerColor = cardStyle.containerColor,
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = cardStyle.border,
     ) {
         Row(
             modifier =
@@ -85,8 +88,8 @@ fun DeviceStatusCard(
                 Spacer(Modifier.width(12.dp))
                 Surface(
                     shape = RoundedCornerShape(50),
-                    color = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
                 ) {
                     Text(
                         text = stringResource(R.string.home_battery, battery),

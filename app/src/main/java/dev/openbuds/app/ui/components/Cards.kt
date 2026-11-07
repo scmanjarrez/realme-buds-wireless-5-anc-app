@@ -19,14 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import dev.openbuds.app.ui.theme.LocalCardStyle
 
 /**
  * Show a settings card with an optional header and description.
  *
- * The card fills the available width and uses the surface container color with no elevation.
+ * The card fills the available width and uses the container color from the theme's card style
+ * with no elevation.
  * When [title] is not null, a header is shown with an optional leading [icon] tinted with the
  * primary color. An optional [description] is shown below the header. The [content] is laid out
  * in a [Column] below them.
@@ -45,14 +46,16 @@ fun SettingsCard(
     description: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val cardStyle = LocalCardStyle.current
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors =
             CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                containerColor = cardStyle.containerColor,
             ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = cardStyle.border,
     ) {
         Column(modifier = Modifier.padding(vertical = 8.dp)) {
             if (title != null) {
@@ -72,8 +75,7 @@ fun SettingsCard(
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = MaterialTheme.colorScheme.primary,
                     )
                 }
             }

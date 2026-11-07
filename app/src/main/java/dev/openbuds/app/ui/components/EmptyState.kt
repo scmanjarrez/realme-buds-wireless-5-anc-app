@@ -18,8 +18,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 /**
- * Show a centered placeholder inside a settings card, with an icon, text and optional action or
- * spinner.
+ * Show a centered placeholder directly on the background, without a card, with an icon, text and
+ * optional action or spinner.
  *
  * When [loading] is true, a progress indicator is shown and [actionLabel] and [onAction] are
  * ignored. Otherwise, the action button is shown only when both [actionLabel] and [onAction]
@@ -42,37 +42,35 @@ fun EmptyState(
     onAction: (() -> Unit)? = null,
     loading: Boolean = false,
 ) {
-    SettingsCard(title = null, modifier = modifier) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            IconBadge(icon = icon, size = 72.dp)
+    Column(
+        modifier = modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        IconBadge(icon = icon, size = 72.dp)
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.headlineSmall,
+            color = MaterialTheme.colorScheme.onSurface,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        if (loading) {
             Spacer(modifier = Modifier.height(24.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onSurface,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = message,
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            if (loading) {
-                Spacer(modifier = Modifier.height(24.dp))
-                CircularProgressIndicator()
-            } else if (actionLabel != null && onAction != null) {
-                Spacer(modifier = Modifier.height(24.dp))
-                Button(onClick = onAction) {
-                    Text(text = actionLabel)
-                }
+            CircularProgressIndicator()
+        } else if (actionLabel != null && onAction != null) {
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(onClick = onAction) {
+                Text(text = actionLabel)
             }
         }
     }

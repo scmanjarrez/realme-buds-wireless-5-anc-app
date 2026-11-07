@@ -1,5 +1,6 @@
 package dev.openbuds.app.ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,7 +14,7 @@ import androidx.compose.material.icons.outlined.Headphones
 import androidx.compose.material.icons.outlined.HeadsetOff
 import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material.icons.outlined.Lock
-import androidx.compose.material.icons.outlined.Sync
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -49,7 +50,7 @@ fun ConnectionScreen(
     onReconnect: () -> Unit,
 ) {
     Box(
-        modifier = Modifier.fillMaxSize().safeDrawingPadding(),
+        modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).safeDrawingPadding(),
         contentAlignment = Alignment.Center,
     ) {
         when (state) {
@@ -104,9 +105,9 @@ fun ConnectionScreen(
                 }
             }
 
-            ConnectionState.Connecting, ConnectionState.Connected -> {
+            ConnectionState.Checking, ConnectionState.Connecting, ConnectionState.Connected -> {
                 EmptyState(
-                    icon = Icons.Outlined.Sync,
+                    icon = Icons.Outlined.Bluetooth,
                     title = stringResource(R.string.connection_connecting_title),
                     message = stringResource(R.string.connection_connecting_message),
                     loading = true,

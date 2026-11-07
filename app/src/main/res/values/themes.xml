@@ -1,3 +1,5 @@
 <resources>
-    <style name="Theme.OpenBuds" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.OpenBuds" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">#FFFBF8FF</item>
+    </style>
 </resources>

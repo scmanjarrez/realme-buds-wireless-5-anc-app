@@ -1,10 +1,7 @@
 package dev.openbuds.app.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -29,7 +26,9 @@ import androidx.compose.material.icons.outlined.SportsEsports
 import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +42,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.openbuds.app.R
@@ -138,7 +139,7 @@ private fun segmentOf(noise: Int?): NoiseSegment? =
         else -> null
     }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun NoiseCard(
     buds: BudsState,
@@ -178,18 +179,26 @@ private fun NoiseCard(
         )
 
         AnimatedVisibility(visible = selected == NoiseSegment.ANC) {
-            FlowRow(
+            SingleChoiceSegmentedButtonRow(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                ANC_LEVELS.forEach { (level, labelRes) ->
-                    FilterChip(
+                ANC_LEVELS.forEachIndexed { index, (level, labelRes) ->
+                    SegmentedButton(
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = ANC_LEVELS.size),
                         selected = noise == level,
                         onClick = {
                             ancLevel = level
                             viewModel.setNoiseMode(level)
                         },
-                        label = { Text(stringResource(labelRes)) },
+                        label = {
+                            Text(
+                                stringResource(labelRes),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.Center,
+                            )
+                        },
                     )
                 }
             }
@@ -463,4 +472,5 @@ private fun themeLabelOf(mode: ThemeMode): Int =
         ThemeMode.SYSTEM -> R.string.theme_system
         ThemeMode.LIGHT -> R.string.theme_light
         ThemeMode.DARK -> R.string.theme_dark
+        ThemeMode.BLACK -> R.string.theme_black
     }

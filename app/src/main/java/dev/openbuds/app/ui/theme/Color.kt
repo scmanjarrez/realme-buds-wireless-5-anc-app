@@ -8,8 +8,10 @@ import androidx.compose.ui.graphics.Color
 /**
  * Light fallback color scheme for the OpenBuds Material 3 theme.
  *
- * Used by [OpenBudsTheme] in [ThemeMode.Light], and in [ThemeMode.System] when dynamic color is
- * unavailable (Android below 12, API 31). Token roles, grouped by Material 3 family:
+ * Used by [OpenBudsTheme] only on Android below 12 (API 31), where dynamic color is unavailable,
+ * in [ThemeMode.LIGHT] and in [ThemeMode.SYSTEM] when the system is in light mode. On API 31 and
+ * newer, dynamic color replaces it in every mode. Motion is handled separately by `MotionScheme.expressive()`. Token roles, grouped by
+ * Material 3 family:
  *
  * - Primary: [ColorScheme.primary] and its on/container pair. Main brand accent for filled
  *   buttons and selected states. [ColorScheme.inversePrimary] is the accent shown on inverse surfaces.
@@ -73,9 +75,12 @@ internal val FallbackLightColorScheme: ColorScheme =
 /**
  * Dark fallback color scheme for the OpenBuds Material 3 theme.
  *
- * Used by [OpenBudsTheme] under the same conditions as [FallbackLightColorScheme], when the app
- * is in dark mode. Each token has the same role as in [FallbackLightColorScheme]; the tones are
- * adjusted for dark backgrounds, so containers are darker and on-colors are lighter.
+ * Used by [OpenBudsTheme] only on Android below 12 (API 31), in [ThemeMode.DARK] and in
+ * [ThemeMode.SYSTEM] when the system is in dark mode. [ThemeMode.BLACK] uses it only on Android
+ * below 12 too, otherwise it is replaced by [OledDarkColorScheme]. On API 31 and newer, dynamic
+ * dark color replaces it. Each token has the
+ * same role as in [FallbackLightColorScheme]; the tones are adjusted for dark backgrounds, so
+ * containers are darker and on-colors are lighter.
  */
 internal val FallbackDarkColorScheme: ColorScheme =
     darkColorScheme(
@@ -122,8 +127,9 @@ internal val FallbackDarkColorScheme: ColorScheme =
  *
  * Derived from [FallbackDarkColorScheme]. Background and base surfaces are pure black so that
  * OLED pixels stay off, and the container tiers sit just above black so cards remain distinct
- * without lighting many pixels. Only the Dark theme mode uses this scheme; System and Light
- * keep using the fallback schemes.
+ * without lighting many pixels. Used by [OpenBudsTheme] only in [ThemeMode.BLACK] on Android below
+ * 12 (API 31). On API 31 and newer, [ThemeMode.BLACK] uses dynamic dark color with the same
+ * pure-black base surfaces (see `withOledSurfaces` in Theme.kt) instead.
  */
 internal val OledDarkColorScheme: ColorScheme =
     FallbackDarkColorScheme.copy(

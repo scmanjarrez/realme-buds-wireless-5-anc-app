@@ -10,10 +10,12 @@ import kotlinx.coroutines.flow.asStateFlow
  * User-selectable application theme.
  *
  * - [SYSTEM] follows the system dark mode setting and uses dynamic color on Android 12+.
- * - [LIGHT] always uses the fixed light palette.
- * - [DARK] always uses the pure black OLED palette.
+ * - [LIGHT] always uses the light palette.
+ * - [DARK] always uses the standard Material 3 dark palette (dynamic color on Android 12+), not pure
+ *   black.
+ * - [BLACK] always uses a pure black background with bordered cards.
  */
-enum class ThemeMode { SYSTEM, LIGHT, DARK }
+enum class ThemeMode { SYSTEM, LIGHT, DARK, BLACK }
 
 /**
  * Persists the selected [ThemeMode] in the "settings" SharedPreferences file.

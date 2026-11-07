@@ -4,8 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.toShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -15,14 +18,15 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Circular container that displays [icon] on a `primaryContainer` background.
+ * Cookie-shaped container that displays [icon] on a `primaryContainer` background.
  *
  * The icon is drawn at half of [size]. It is decorative, so it has no content description.
  *
  * @param icon The icon to display.
  * @param modifier Modifier applied to the container.
- * @param size Diameter of the circular container.
+ * @param size Diameter of the container's bounding box.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun IconBadge(
     icon: ImageVector,
@@ -33,7 +37,7 @@ fun IconBadge(
         modifier =
             modifier
                 .size(size)
-                .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                .background(MaterialTheme.colorScheme.primaryContainer, MaterialShapes.Cookie9Sided.toShape()),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

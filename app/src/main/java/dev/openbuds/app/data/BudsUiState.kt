@@ -13,6 +13,9 @@ data class BondedDevice(
 
 /** Where the app is in the connection lifecycle. */
 sealed interface ConnectionState {
+    /** Initial state: preconditions have not been checked yet. */
+    data object Checking : ConnectionState
+
     /** Bluetooth connect permission has not been granted. */
     data object NeedsPermission : ConnectionState
 
@@ -45,10 +48,10 @@ sealed interface ConnectionState {
  * Full UI state: the connection lifecycle plus the last state read from the earbuds.
  *
  * @property connection Current position in the connection lifecycle. Starts as
- *   [ConnectionState.NeedsPermission].
+ *   [ConnectionState.Checking] until the preconditions are evaluated.
  * @property buds Last earbud state read over the link, or null before the first successful read.
  */
 data class BudsUiState(
-    val connection: ConnectionState = ConnectionState.NeedsPermission,
+    val connection: ConnectionState = ConnectionState.Checking,
     val buds: BudsState? = null,
 )
