@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
+  <defs>
+    <!-- Lavanda principal con volumen 3D -->
+    <linearGradient id="realme-lavender" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#EFE5FF" />
+      <stop offset="35%" stop-color="#C8B2F8" />
+      <stop offset="75%" stop-color="#9B7EDE" />
+      <stop offset="100%" stop-color="#6E52B5" />
+    </linearGradient>
+
+    <!-- Lavanda con sombreado cilíndrico para los controladores del cuello -->
+    <linearGradient id="cylinder-lavender" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#6E52B5" />
+      <stop offset="30%" stop-color="#C8B2F8" />
+      <stop offset="65%" stop-color="#EFE5FF" />
+      <stop offset="100%" stop-color="#8A6BCE" />
+    </linearGradient>
+
+    <!-- Gradiente metálico (Plata/Titanio lavanda) para los casquillos -->
+    <linearGradient id="metal-silver" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F5F2FA" />
+      <stop offset="45%" stop-color="#A59EB5" />
+      <stop offset="80%" stop-color="#5E586E" />
+      <stop offset="100%" stop-color="#3B3647" />
+    </linearGradient>
+
+    <!-- Gradiente translúcido para las ondas ANC -->
+    <linearGradient id="anc-wave-top" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.95" />
+      <stop offset="100%" stop-color="#C8B2F8" stop-opacity="0.35" />
+    </linearGradient>
+
+    <linearGradient id="anc-wave-bottom" x1="0%" y1="100%" x2="0%" y2="0%">
+      <stop offset="0%" stop-color="#9B7EDE" stop-opacity="0.65" />
+      <stop offset="100%" stop-color="#3B3647" stop-opacity="0.2" />
+    </linearGradient>
+
+    <!-- Sombra general de elevación 3D -->
+    <filter id="drop-shadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="10" stdDeviation="8" flood-color="#000000" flood-opacity="0.55" />
+    </filter>
+
+    <!-- Sombra suave para elementos secundarios -->
+    <filter id="soft-shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="5" stdDeviation="4" flood-color="#000000" flood-opacity="0.45" />
+    </filter>
+  </defs>
+
+  <!-- 1. ONDAS SONORAS ANC (Con matiz cristal lavanda) -->
+  <g filter="url(#soft-shadow)">
+    <!-- Onda Izquierda Superior -->
+    <path d="M 56 256 L 75 256 C 85 256, 88 242, 95 242 C 102 242, 105 256, 115 256 L 130 256 C 142 256, 146 216, 156 216 C 166 216, 168 248, 174 248 C 180 248, 184 190, 196 190 C 208 190, 212 248, 218 248 C 224 248, 226 232, 234 232 C 242 232, 245 256, 254 256 Z" fill="url(#anc-wave-top)" />
+    <!-- Onda Izquierda Inferior -->
+    <path d="M 56 256 L 75 256 C 85 256, 88 270, 95 270 C 102 270, 105 256, 115 256 L 130 256 C 142 256, 146 286, 156 286 C 166 286, 168 262, 174 262 C 180 262, 184 316, 196 316 C 208 316, 212 262, 218 262 C 224 262, 226 276, 234 276 C 242 276, 245 256, 254 256 Z" fill="url(#anc-wave-bottom)" />
+    <line x1="56" y1="256" x2="225" y2="256" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.8" />
+
+    <!-- Onda Derecha Superior -->
+    <path d="M 456 256 L 437 256 C 427 256, 424 242, 417 242 C 410 242, 407 256, 397 256 L 382 256 C 370 256, 366 216, 356 216 C 346 216, 344 248, 338 248 C 332 248, 328 190, 316 190 C 304 190, 300 248, 294 248 C 288 248, 286 232, 278 232 C 270 232, 267 256, 258 256 Z" fill="url(#anc-wave-top)" />
+    <!-- Onda Derecha Inferior -->
+    <path d="M 456 256 L 437 256 C 427 256, 424 270, 417 270 C 410 270, 407 256, 397 256 L 382 256 C 370 256, 366 286, 356 286 C 346 286, 344 262, 338 262 C 332 262, 328 316, 316 316 C 304 316, 300 262, 294 262 C 288 262, 286 276, 278 276 C 270 276, 267 256, 258 256 Z" fill="url(#anc-wave-bottom)" />
+    <line x1="287" y1="256" x2="456" y2="256" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" opacity="0.8" />
+  </g>
+
+  <!-- 2. CABLES INFERIORES Y AURICULARES IN-EAR -->
+  <g filter="url(#drop-shadow)">
+    <!-- Loop inferior izquierdo -->
+    <path d="M 196 392 C 212 426, 162 448, 134 405" fill="none" stroke="url(#realme-lavender)" stroke-width="8" stroke-linecap="round" />
+
+    <!-- Loop inferior derecho -->
+    <path d="M 316 392 C 300 426, 350 448, 378 405" fill="none" stroke="url(#realme-lavender)" stroke-width="8" stroke-linecap="round" />
+
+    <!-- AURICULAR IZQUIERDO (Bud) -->
+    <g transform="translate(124, 392) rotate(-28)">
+      <rect x="2" y="-18" width="24" height="36" rx="6" fill="url(#metal-silver)" />
+      <rect x="-2" y="-19" width="8" height="38" rx="2" fill="url(#realme-lavender)" />
+      <ellipse cx="-12" cy="0" rx="16" ry="20" fill="url(#realme-lavender)" />
+      <ellipse cx="-21" cy="2" rx="4" ry="8" fill="#181620" />
+    </g>
+
+    <!-- AURICULAR DERECHO (Bud) -->
+    <g transform="translate(388, 392) rotate(28)">
+      <rect x="-26" y="-18" width="24" height="36" rx="6" fill="url(#metal-silver)" />
+      <rect x="-6" y="-19" width="8" height="38" rx="2" fill="url(#realme-lavender)" />
+      <ellipse cx="12" cy="0" rx="16" ry="20" fill="url(#realme-lavender)" />
+      <ellipse cx="21" cy="2" rx="4" ry="8" fill="#181620" />
+    </g>
+  </g>
+
+  <!-- 3. COLLAR NECKBAND LIMPIO + BLUETOOTH CENTRAL -->
+  <g filter="url(#drop-shadow)">
+    <!-- Arco principal del Neckband -->
+    <path d="M 148 312 C 95 215, 135 82, 256 82 C 377 82, 417 215, 364 312" fill="none" stroke="url(#realme-lavender)" stroke-width="18" stroke-linecap="round" />
+
+    <!-- Brillo especular sobre el arco para volumen 3D -->
+    <path d="M 145 290 C 105 205, 142 88, 256 88 C 370 88, 407 205, 367 290" fill="none" stroke="#F8F2FF" stroke-width="3" stroke-linecap="round" opacity="0.65" />
+
+    <!-- Bastón / Controlador Izquierdo -->
+    <g transform="translate(172, 352) rotate(-28)">
+      <rect x="-13" y="-52" width="26" height="10" rx="3" fill="url(#metal-silver)" />
+      <rect x="-12" y="42" width="24" height="12" rx="6" fill="url(#metal-silver)" />
+      <rect x="-14" y="-44" width="28" height="88" rx="6" fill="url(#cylinder-lavender)" />
+      <rect x="-14" y="-32" width="28" height="3" fill="#5E586E" />
+    </g>
+
+    <!-- Bastón / Controlador Derecho -->
+    <g transform="translate(340, 352) rotate(28)">
+      <rect x="-13" y="-52" width="26" height="10" rx="3" fill="url(#metal-silver)" />
+      <rect x="-12" y="42" width="24" height="12" rx="6" fill="url(#metal-silver)" />
+      <rect x="-14" y="-44" width="28" height="88" rx="6" fill="url(#cylinder-lavender)" />
+      <rect x="-14" y="-32" width="28" height="3" fill="#5E586E" />
+    </g>
+
+    <!-- 4. RUNA BLUETOOTH CENTRAL -->
+    <path d="M 232 232 L 280 280 L 256 306 L 256 206 L 280 232 L 232 280" fill="none" stroke="url(#realme-lavender)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round" />
+  </g>
+</svg>

@@ -1,0 +1,3 @@
+    En la pestaña Foreground Layer, selecciona este archivo SVG y ajusta la barra de Resize en torno al 70% - 75% para que todo el dibujo quede dentro del círculo de zona segura (Safe Zone) y ningún fabricante (Samsung, Pixel, Xiaomi) corte los auriculares al aplicar su máscara.
+
+    En la pestaña Background Layer, elige la opción Color y ponle el tono #181620 (el violeta oscuro profundo que teníamos antes); así el sistema operativo recortará ese fondo dinámicamente con la forma exacta de cada móvil.
