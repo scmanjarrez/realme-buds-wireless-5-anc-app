@@ -6,7 +6,10 @@
  * only for TX).
  *
  * Frame layout, offsets from the start of the frame (details in docs/PROTOCOL.md, "Frame anatomy"):
- *   0 aa start | 1 len (total - 2) | 2-3 header | 4-5 cmd (u16 LE) | 6 seq | 7-8 dlen (u16 LE) | 9.. data
+ *   0 aa start | 1 frameLength (total - 2) | 2-3 header | 4-5 cmd (u16 LE) | 6 seq |
+ *   7-8 dataLength (u16 LE) | 9.. data
+ *   frameLength is a varint of 1 or 2 bytes; the layout above is the one-byte form
+ *   (with two bytes every later field shifts by one).
  * The hook reads the fields of the app's Packet object (cmd, payload and seq), not the raw bytes.
  *
  * Run it with the command below (see the comment at the top of the file for the process name):

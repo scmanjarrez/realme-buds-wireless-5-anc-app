@@ -2,9 +2,9 @@
 """Minimal RFCOMM client for the realme Buds Wireless 5 ANC.
 
 The protocol is described in docs/PROTOCOL.md. By default the client only
-sends read queries (0x0106, 0x0105, 0x010f) and changes nothing. With
---send it can also write the noise-control mode (0x0404) or the EQ preset
-(0x0406).
+sends read queries (0x0106, 0x0105, 0x010f) and changes nothing. Query
+0x010f is the active equalizer. With --send it can also write the
+noise-control mode (0x0404) or the EQ preset (0x0406).
 
 Usage:
     python3 buds_client.py AA:BB:CC:DD:EE:FF
@@ -22,10 +22,18 @@ import time
 # revert.
 ALLOWED_SET = {0x0404, 0x0406}
 
-QUERIES = {0x0106: "status", 0x0105: "version", 0x010F: "query 0x010f"}
+QUERIES = {0x0106: "status", 0x0105: "version", 0x010F: "active equalizer"}
 
 FRAME_SYNC = 0xAA
-FRAME_HEADER_LEN = 2
+SYNC_LEN = 1
+FRAME_START_LEN = 2  # sync byte and first frameLength byte
+MAX_PREFIX_LEN = 3  # sync byte and up to two frameLength bytes
+LENGTH_MORE_BIT = 0x80
+LENGTH_VALUE_MASK = 0x7F
+LENGTH_SHIFT = 7
+MIN_FRAME_LENGTH = 7  # header, cmd, seq and dataLength
+MAX_DATA_SIZE = 120  # 7 fixed bytes + 120 data bytes fit in one length byte
+RECV_SIZE = 512
 TEXT_RESPONSE = 0x8105
 
 
@@ -46,28 +54,92 @@ class Args(argparse.Namespace):
 def frame(cmd: int, seq: int, data: bytes = b"") -> bytes:
     """Build a request frame for the earbuds.
 
-    The frame starts with a sync byte (0xAA) and a length byte that counts
-    the body. The body holds two zero bytes, the command id (uint16, little
-    endian), the sequence number (uint8), the data length (uint16, little
-    endian) and the data. See the 'Frame anatomy' section of
-    docs/PROTOCOL.md for the full layout.
+    The frame starts with a sync byte (0xAA) and a one-byte frameLength that
+    counts the bytes after it. The body holds two zero bytes, the command id
+    (uint16, little endian), the sequence number (uint8), the dataLength
+    (uint16, little endian) and the data. See the 'Frame anatomy' section of
+    docs/PROTOCOL.md for the full layout. A one-byte frameLength holds values
+    up to 127, which is enough for MAX_DATA_SIZE.
 
     Args:
         cmd: Command id, for example 0x0106.
         seq: Sequence number that the earbuds echo in their response.
-        data: Optional payload bytes.
+        data: Optional payload bytes, at most MAX_DATA_SIZE bytes.
 
     Returns:
         The complete frame ready to be sent.
+
+    Raises:
+        ValueError: If data is longer than MAX_DATA_SIZE bytes.
     """
+    if len(data) > MAX_DATA_SIZE:
+        msg = f"data is {len(data)} bytes, the maximum is {MAX_DATA_SIZE}"
+        raise ValueError(msg)
     body = b"\x00\x00" + struct.pack("<HBH", cmd, seq, len(data)) + data
     return bytes([FRAME_SYNC, len(body)]) + body
+
+
+def _read_length(buf: bytes) -> tuple[int, int] | None:
+    """Decode the frameLength varint at the start of a receive buffer.
+
+    The varint has one or two bytes. Bit 0x80 of a byte means that another
+    length byte follows. A third length byte makes the frame invalid.
+
+    Args:
+        buf: Buffered bytes that start with the sync byte.
+
+    Returns:
+        A tuple with frameLength and the size of its varint, (0, 0) if the
+        varint is invalid, or None if more bytes are needed.
+    """
+    if len(buf) < FRAME_START_LEN:
+        return None
+    if not buf[1] & LENGTH_MORE_BIT:
+        return buf[1], 1
+    if len(buf) < MAX_PREFIX_LEN:
+        return None
+    if buf[2] & LENGTH_MORE_BIT:
+        return 0, 0
+    value = (buf[1] & LENGTH_VALUE_MASK) | (buf[2] << LENGTH_SHIFT)
+    return value, 2
+
+
+def _split_frames(buf: bytes) -> tuple[list[bytes], bytes]:
+    """Cut the complete frames from the start of a receive buffer.
+
+    Frames whose frameLength is below MIN_FRAME_LENGTH are consumed but not
+    returned. If the buffer does not start with the sync byte, or the
+    frameLength varint is invalid, the buffered bytes are discarded.
+
+    Args:
+        buf: Received bytes that may hold zero or more frames.
+
+    Returns:
+        The complete frames, and the bytes that are still incomplete.
+    """
+    frames: list[bytes] = []
+    while buf and buf[0] == FRAME_SYNC:
+        length = _read_length(buf)
+        if length is None:
+            break
+        frame_length, length_size = length
+        if length_size == 0:
+            return frames, b""
+        total = SYNC_LEN + length_size + frame_length
+        if len(buf) < total:
+            break
+        if frame_length >= MIN_FRAME_LENGTH:
+            frames.append(buf[:total])
+        buf = buf[total:]
+    if buf and buf[0] != FRAME_SYNC:
+        buf = b""
+    return frames, buf
 
 
 def read_frames(sock: socket.socket, timeout: float) -> list[bytes]:
     """Read from the socket and return the complete frames received.
 
-    Each frame is split using its length byte, the second byte of the frame
+    Each frame is split using its frameLength varint, one or two bytes long
     (see 'Frame anatomy' in docs/PROTOCOL.md). If the buffer does not start
     with the sync byte, the buffered bytes are discarded. Reading stops when
     the timeout expires or the peer closes the connection.
@@ -84,25 +156,19 @@ def read_frames(sock: socket.socket, timeout: float) -> list[bytes]:
     out: list[bytes] = []
     with contextlib.suppress(TimeoutError):
         while True:
-            chunk = sock.recv(512)
+            chunk = sock.recv(RECV_SIZE)
             if not chunk:
                 break
-            buf += chunk
-            while (
-                len(buf) >= FRAME_HEADER_LEN
-                and buf[0] == FRAME_SYNC
-                and len(buf) >= buf[1] + FRAME_HEADER_LEN
-            ):
-                n = buf[1] + FRAME_HEADER_LEN
-                out.append(buf[:n])
-                buf = buf[n:]
-            if buf and buf[0] != FRAME_SYNC:
-                buf = b""
+            frames, buf = _split_frames(buf + chunk)
+            out.extend(frames)
     return out
 
 
 def parse(f: bytes) -> tuple[int, int, bytes]:
     """Split a complete frame into its command, sequence and data.
+
+    The frameLength varint is one or two bytes long, so the position of the
+    header depends on its size (see 'Frame anatomy' in docs/PROTOCOL.md).
 
     Args:
         f: A complete frame as returned by read_frames.
@@ -110,9 +176,13 @@ def parse(f: bytes) -> tuple[int, int, bytes]:
     Returns:
         A tuple with the command id, the sequence number and the data bytes.
     """
-    fields: tuple[int, int, int] = struct.unpack("<HBH", f[4:9])
-    cmd, seq, dlen = fields
-    return cmd, seq, f[9 : 9 + dlen]
+    length_size = 2 if f[1] & LENGTH_MORE_BIT else 1
+    start = SYNC_LEN + length_size
+    fields: tuple[int, int, int] = struct.unpack(
+        "<HBH", f[start + 2 : start + 7]
+    )
+    cmd, seq, data_length = fields
+    return cmd, seq, f[start + 7 : start + 7 + data_length]
 
 
 def try_channel(mac: str, ch: int, seq: int = 1) -> socket.socket | None:
