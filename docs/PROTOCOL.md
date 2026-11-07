@@ -44,6 +44,7 @@ listed below from the Android app in this repository.
 - Service UUIDs, tried in this order [LOG][code BudsConnection.kt]:
   1. Standard SPP: `00001101-0000-1000-8000-00805F9B34FB`
   2. Qualcomm: `0000079A-D102-11E1-9B23-00025B00A5A5`
+  3. Last resort: direct RFCOMM channel 1, without a UUID (`createRfcommSocket(1)` through reflection).
 - Observed behaviour [LOG] (OpenBuds logcat, 2026-11-07, realme Buds Wireless 5 ANC):
   - In the same log, SPP connected once and failed once ("read failed, socket might closed"); then the
     Qualcomm UUID connected.
@@ -543,8 +544,6 @@ Response:
 
 | offset | size | field | values / notes |
 |--------|------|-------|----------------|
-| offset | size | field | values / notes |
-|--------|------|-------|----------------|
 | 0 | 1 | n | number of entries; `01` in the captured response [APK] |
 | 1 | repeat n times | entry | layout below |
 
@@ -552,7 +551,7 @@ Entry (offsets from the start of the entry):
 
 | offset | size | field | values / notes |
 |--------|------|-------|----------------|
-| +0 | 1 | type | `01` left earbud, `02` right earbud, `03` case (box); any other value is read as left [APK] |
+| +0 | 1 | type | `01` left earbud, `02` right earbud, `03` case (box); any other value is read as left [APK]; this app differs: it ignores entries whose type is not `01` or `02` (`Events.batteryLevel`) |
 | +1 | 1 | level | `level & 0x7f` = battery in %; bit `0x80` = charging [APK] |
 
 - **Captured layout:** worked example 2 (`constructed`) has the response `01 01 5a`: n = 1, type = 1
@@ -987,7 +986,7 @@ Response:
 | 1 | n | id | supported event id |
 
 - **Notes:** this model: `01 02 03 04 05 06 0d f1 f4`.
-- **Hex example:** none in examples.md.
+- **Hex example:** none in Worked examples.
 
 #### 0x0205 register events
 - **Purpose:** register the events the host wants to receive.
@@ -1019,7 +1018,7 @@ Entry:
 
 - **Notes:** registration works from this app: query 0x0200, register the known ids with 0x0205, and
   the earbuds ack OK. The vendor app registers `01 02 03 04 05 06 f4 0d f1`.
-- **Hex example:** none in examples.md.
+- **Hex example:** none in Worked examples.
 
 #### 0x0204 notification
 - **Purpose:** container for unsolicited events from the earbuds.
@@ -1359,7 +1358,7 @@ Function values:
 Response: status byte only.
 
 - **Hex example:** `01 04 01 08` (one entry: button 04, single tap, function 0x08 noise control). It is
-  not in examples.md; it is kept from the original text and has no label.
+  not in Worked examples; it is kept from the original text and has no label.
 - **Notes:** Button 01 (multifunction) is seen as `01 01 action function`. The current functions are
   read with 0x0108.
 
@@ -1719,7 +1718,8 @@ The vendor app converts raw to app value as shown (TLHCI:446-448); the mapping i
     the moderate level). The tested sequence was: Smart, then Moderate selected and back to Smart, then
     Off, repeated. 0x04 and 0x08 were not seen in that session. The `T` byte is not read by the app and
     its meaning is unknown.
-  - This app decodes only the 2-byte form (`BudsEvent.Noise` with the mode as value). For `04 01 10`,
+  - This app decodes the 2-byte form (`BudsEvent.Noise` with the mode as value), and any longer payload that
+    fits the count-and-pairs layout (for example `03 02 01 04 02 01` gives types 1 and 2). For `04 01 10`,
     `Events.parse` returns `BudsEvent.Unknown`, so the Smart ANC level is not shown in the app.
   - `BudsEvent.Unknown` for id 0x03 still triggers a debounced state reload, because `NOISE` is in
     `BudsRepository.STATE_RELOAD_EVENT_IDS`. The reload re-reads the real mode, so the undecoded frame is

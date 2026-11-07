@@ -19,7 +19,7 @@ Use it at your own risk. It only writes ordinary settings and never touches firm
 
 ## What it does
 
-- Reads and shows the current state: battery, firmware version, noise mode, EQ, toggles, buttons.
+- Reads and shows the current state: the lowest earbud battery level (the charging state, each side and the case are not shown), firmware version, noise mode, EQ, toggles, buttons.
 - The screen updates by itself when the earbuds change something (ANC button, battery, dual-device).
   Pull down on any screen to refresh.
 - Noise control: Off, Transparency, and the four noise-cancellation levels (Smart, Max, Moderate, Mild).
@@ -58,8 +58,10 @@ description is in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 Every message looks like this:
 
 ```
-AA | len | 00 00 | cmd (u16 LE) | seq | dlen (u16 LE) | data
+AA | frameLength | 00 00 | cmd (u16 LE) | seq | dataLength (u16 LE) | data
 ```
+
+`frameLength` counts every byte after itself and is a varint of one or two bytes; the app reads both forms and only sends frames with up to 120 data bytes.
 
 A response repeats the command with bit 15 set and the same `seq`; its first data byte is the status.
 
@@ -145,8 +147,7 @@ python3 debugging/buds_client.py AA:BB:CC:DD:EE:FF --send 0x0406:03       # Clea
 
 Replace `AA:BB:CC:DD:EE:FF` with your earbuds' address. The earbuds can usually keep only a couple
 of simultaneous connections, so disconnect one device first if the connection is refused.
-The valid values are in [docs/PROTOCOL.md](docs/PROTOCOL.md). The script prints its messages in
-Spanish for now.
+The valid values are in [docs/PROTOCOL.md](docs/PROTOCOL.md).
 
 ## Getting the protocol out of realme Link (Frida)
 
@@ -188,31 +189,27 @@ Two things help a lot besides Frida:
   (display filter `btrfcomm`). If you write your own parser, note that with credit-based flow
   control the RFCOMM credit byte is **not** counted in the RFCOMM length field.
 
-## Privacy: do not commit captures
-
-Captures, bug reports and logcat exports contain personal data: phone numbers from the hands-free
-traffic, and the names and Bluetooth addresses of every device your earbuds know. The `.gitignore`
-excludes the usual file names, but check before you publish anything.
-
 ## Repository layout
 
 ```
 app/        the Android app
 docs/       PROTOCOL.md, the protocol description
 debugging/  buds_client.py (Python test client) and hook_packets.js (Frida script)
+design/     icon.svg, the source artwork of the launcher icon
 ```
+
+The launcher icon is an adaptive vector icon (`ic_launcher_foreground.xml`, converted from `design/icon.svg` by hand, no drop shadows) plus PNG-like `.webp` fallbacks for Android 7.x (API 24-25) rendered from the same SVG.
 
 This repository contains no code or assets from the vendor app; everything here was written from
 observing how the earbuds behave.
 
 ## Known limitations
 
-- Parts of the vendor app that were not explored (its overflow menu, the sub-screens of Spatial
-  audio) may use commands that are not documented.
+- Parts of the vendor app that were not explored (its overflow menu) may use commands that are not documented.
 - Only tested on realme Buds Wireless 5 ANC and Android 11.
 - Find my phone does not start after a phone reboot until you open the app once.
 - No wear detection on this neckband model, so the fit test cannot tell "not inserted" from a bad seal.
-- The Python script (`debugging/buds_client.py`) still prints its messages in Spanish.
+- The battery level is the lowest earbud value; per-side values, the case and the charging state are decoded by the protocol notes but not shown.
 
 ## License
 
