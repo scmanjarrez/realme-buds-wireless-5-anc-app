@@ -26,20 +26,21 @@ import dev.openbuds.app.R
 
 /**
  * Header card that shows the connected earbuds: device icon, name, connection status
- * with optional firmware version, and an optional battery badge.
+ * and an optional battery badge.
+ *
+ * The text column stacks the name, then the connection status ("Connected") with a
+ * status dot. Each line is single-line.
  *
  * The row is merged for accessibility so screen readers announce it as one block.
  *
  * @param name Display name of the device.
  * @param battery Battery level in percent, or null to hide the badge.
- * @param firmware Firmware version, or null to hide it from the status line.
  * @param modifier Modifier applied to the card.
  */
 @Composable
 fun DeviceStatusCard(
     name: String,
     battery: Int?,
-    firmware: String?,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -72,17 +73,11 @@ fun DeviceStatusCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     StatusDot(color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(6.dp))
-                    val connected = stringResource(R.string.dual_state_connected)
-                    val statusText =
-                        if (firmware != null) {
-                            "$connected · ${stringResource(R.string.home_firmware, firmware)}"
-                        } else {
-                            connected
-                        }
                     Text(
-                        text = statusText,
+                        text = stringResource(R.string.dual_state_connected),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
                     )
                 }
             }

@@ -16,6 +16,8 @@ import androidx.compose.material.icons.outlined.Earbuds
 import androidx.compose.material.icons.outlined.Equalizer
 import androidx.compose.material.icons.outlined.GraphicEq
 import androidx.compose.material.icons.outlined.Hearing
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material.icons.outlined.NoiseAware
 import androidx.compose.material.icons.outlined.NoiseControlOff
 import androidx.compose.material.icons.outlined.Palette
@@ -39,6 +41,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -56,6 +59,7 @@ import dev.openbuds.app.ui.components.LabeledSlider
 import dev.openbuds.app.ui.components.NavRow
 import dev.openbuds.app.ui.components.NoiseModeOption
 import dev.openbuds.app.ui.components.NoiseModeSelector
+import dev.openbuds.app.ui.components.SettingRow
 import dev.openbuds.app.ui.components.SettingsCard
 import dev.openbuds.app.ui.components.SwitchRow
 import dev.openbuds.app.ui.components.ThemeDialog
@@ -67,6 +71,9 @@ import dev.openbuds.app.ui.theme.ThemeMode
  * See 'Queries (0x01xx)' in docs/PROTOCOL.md for the active-EQ query.
  */
 private const val EQ_CUSTOM = 0x04
+
+/** Project repository opened by the About row of the app card. */
+private const val REPO_URL = "https://github.com/scmanjarrez/realme-buds-wireless-5-anc-app"
 
 /** Dynamic audio sliders: protocol type to label, in display order. */
 private val DYNAMIC_SLIDERS =
@@ -113,12 +120,12 @@ fun HomeScreen(
         DeviceStatusCard(
             name = stringResource(R.string.home_title),
             battery = buds.battery,
-            firmware = buds.firmware,
         )
         NoiseCard(buds = buds, viewModel = viewModel)
         SoundCard(buds = buds, viewModel = viewModel, onNavigate = onNavigate)
-        OtherCard(buds = buds, viewModel = viewModel, onNavigate = onNavigate)
-        AppCard(viewModel = viewModel)
+        ConnectivityCard(buds = buds, onNavigate = onNavigate)
+        ControlsCard(buds = buds, viewModel = viewModel, onNavigate = onNavigate)
+        AppCard(viewModel = viewModel, firmware = buds.firmware)
     }
 }
 
@@ -273,40 +280,19 @@ private fun SoundCard(
     }
 }
 
+/** Show the connectivity card with the dual-device and find-my-phone rows. */
 @Composable
-private fun OtherCard(
+private fun ConnectivityCard(
     buds: BudsState,
-    viewModel: BudsViewModel,
     onNavigate: (String) -> Unit,
 ) {
     val findPhoneState = buds.features[Feature.FIND_MY_PHONE]?.let { stringResource(stateLabelOf(it)) }
     val dualState = buds.features[Feature.DUAL_CONNECTION]?.let { stringResource(stateLabelOf(it)) }
 
     SettingsCard(
-        title = stringResource(R.string.home_other),
-        icon = Icons.Outlined.Tune,
+        title = stringResource(R.string.home_connectivity),
+        icon = Icons.Outlined.Devices,
     ) {
-        FeatureSwitchRow(
-            title = stringResource(R.string.home_game_mode),
-            icon = Icons.Outlined.SportsEsports,
-            featureId = Feature.GAME_MODE,
-            buds = buds,
-            viewModel = viewModel,
-        )
-        InsetDivider()
-        NavRow(
-            title = stringResource(R.string.home_fit_test),
-            icon = Icons.Outlined.Earbuds,
-            onClick = { onNavigate(Routes.FIT) },
-        )
-        InsetDivider()
-        NavRow(
-            title = stringResource(R.string.home_find_my_phone),
-            subtitle = findPhoneState,
-            icon = Icons.Outlined.PhonelinkRing,
-            onClick = { onNavigate(Routes.FIND_PHONE) },
-        )
-        InsetDivider()
         NavRow(
             title = stringResource(R.string.home_dual_device),
             subtitle = dualState,
@@ -315,9 +301,37 @@ private fun OtherCard(
         )
         InsetDivider()
         NavRow(
+            title = stringResource(R.string.home_find_my_phone),
+            subtitle = findPhoneState,
+            icon = Icons.Outlined.PhonelinkRing,
+            onClick = { onNavigate(Routes.FIND_PHONE) },
+        )
+    }
+}
+
+/** Show the controls card with the button, feature and fit-test rows. */
+@Composable
+private fun ControlsCard(
+    buds: BudsState,
+    viewModel: BudsViewModel,
+    onNavigate: (String) -> Unit,
+) {
+    SettingsCard(
+        title = stringResource(R.string.home_controls),
+        icon = Icons.Outlined.Tune,
+    ) {
+        NavRow(
             title = stringResource(R.string.home_button_settings),
             icon = Icons.Outlined.TouchApp,
             onClick = { onNavigate(Routes.BUTTONS) },
+        )
+        InsetDivider()
+        FeatureSwitchRow(
+            title = stringResource(R.string.home_game_mode),
+            icon = Icons.Outlined.SportsEsports,
+            featureId = Feature.GAME_MODE,
+            buds = buds,
+            viewModel = viewModel,
         )
         InsetDivider()
         FeatureSwitchRow(
@@ -327,6 +341,12 @@ private fun OtherCard(
             buds = buds,
             viewModel = viewModel,
         )
+        InsetDivider()
+        NavRow(
+            title = stringResource(R.string.home_fit_test),
+            icon = Icons.Outlined.Earbuds,
+            onClick = { onNavigate(Routes.FIT) },
+        )
     }
 }
 
@@ -335,12 +355,19 @@ private fun OtherCard(
  *
  * Tapping the theme row opens [ThemeDialog]; the choice is applied and persisted by the view model.
  *
+ * The firmware row is shown last, only when [firmware] is known.
+ *
  * @param viewModel provides the current theme mode and receives the selected one
+ * @param firmware raw firmware text from the earbuds, or null when not read yet
  */
 @Composable
-private fun AppCard(viewModel: BudsViewModel) {
+private fun AppCard(
+    viewModel: BudsViewModel,
+    firmware: String?,
+) {
     val mode by viewModel.themeMode.collectAsStateWithLifecycle()
     var showDialog by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
 
     SettingsCard(
         title = stringResource(R.string.home_app),
@@ -352,6 +379,21 @@ private fun AppCard(viewModel: BudsViewModel) {
             icon = Icons.Outlined.Palette,
             onClick = { showDialog = true },
         )
+        InsetDivider()
+        NavRow(
+            title = stringResource(R.string.home_about),
+            subtitle = stringResource(R.string.home_about_subtitle),
+            icon = Icons.Outlined.Info,
+            onClick = { uriHandler.openUri(REPO_URL) },
+        )
+        if (firmware != null) {
+            InsetDivider()
+            SettingRow(
+                title = stringResource(R.string.home_firmware),
+                subtitle = firmwareVersion(firmware),
+                icon = Icons.Outlined.Memory,
+            )
+        }
     }
 
     if (showDialog) {
@@ -361,6 +403,28 @@ private fun AppCard(viewModel: BudsViewModel) {
             onDismiss = { showDialog = false },
         )
     }
+}
+
+/**
+ * Extract the version from the raw firmware text reported by the earbuds (query 0x0105).
+ *
+ * The raw text is comma-separated. Its first two fields are not documented in docs/PROTOCOL.md,
+ * so only the text after the second comma is shown. When there are fewer than two commas, or
+ * nothing follows the second comma, the full raw text is returned.
+ *
+ * Example: "1,2,1.1.0.56" becomes "1.1.0.56".
+ *
+ * @param raw raw firmware text as received from the earbuds
+ * @return the version part of [raw], or [raw] itself when no version part is found
+ */
+private fun firmwareVersion(raw: String): String {
+    val version =
+        raw
+            .split(',', limit = 3)
+            .getOrNull(2)
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+    return version ?: raw
 }
 
 @Composable

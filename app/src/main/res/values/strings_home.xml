@@ -2,7 +2,7 @@
 <resources>
     <string name="home_title">realme Buds Wireless 5 ANC</string>
     <string name="home_battery">%1$d%%</string>
-    <string name="home_firmware">Firmware %1$s</string>
+    <string name="home_firmware">Firmware</string>
     <string name="home_noise_control">Noise control</string>
     <string name="home_noise_anc">Noise cancellation</string>
     <string name="home_noise_anc_short">ANC</string>
@@ -22,7 +22,10 @@
     <string name="home_dynamic_mid">Mid</string>
     <string name="home_dynamic_high">High</string>
     <string name="home_volume_enhancer">Volume enhancer</string>
-    <string name="home_other">Other</string>
+    <string name="home_connectivity">Connectivity &amp; devices</string>
+    <string name="home_controls">Controls &amp; features</string>
+    <string name="home_about">About</string>
+    <string name="home_about_subtitle">Open source on GitHub</string>
     <string name="home_game_mode">Game mode</string>
     <string name="home_fit_test">Earbud fit test</string>
     <string name="home_find_my_phone">Find my phone</string>
