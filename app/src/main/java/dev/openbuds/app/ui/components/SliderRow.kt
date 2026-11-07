@@ -5,9 +5,11 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSliderState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
@@ -43,6 +46,7 @@ private const val SETTLE_MS = 1500L
  * @param valueLabel Formats the displayed value. Defaults to the plain integer; use it to append
  * units such as dB.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LabeledSlider(
     title: String,
@@ -64,6 +68,17 @@ fun LabeledSlider(
         }
     }
 
+    val sliderState =
+        rememberSliderState(
+            value = local,
+            steps = (range.last - range.first - 1).coerceAtLeast(0),
+            trackRange = range.first.toFloat()..range.last.toFloat(),
+        )
+
+    LaunchedEffect(local) {
+        if (sliderState.value != local) sliderState.value = local
+    }
+
     Column(
         modifier =
             modifier
@@ -78,17 +93,19 @@ fun LabeledSlider(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = valueLabel(local.roundToInt()),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
             )
         }
         Slider(
-            value = local,
+            state = sliderState,
             onValueChange = {
+                sliderState.value = it
                 dragging = true
                 lastInteraction = TimeSource.Monotonic.markNow()
                 local = it
@@ -98,8 +115,6 @@ fun LabeledSlider(
                 lastInteraction = TimeSource.Monotonic.markNow()
                 onCommit(local.roundToInt())
             },
-            valueRange = range.first.toFloat()..range.last.toFloat(),
-            steps = (range.last - range.first - 1).coerceAtLeast(0),
             modifier = Modifier.fillMaxWidth(),
         )
     }

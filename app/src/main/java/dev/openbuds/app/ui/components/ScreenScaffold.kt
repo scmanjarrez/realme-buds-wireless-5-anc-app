@@ -27,7 +27,7 @@ import dev.openbuds.app.R
 /**
  * Lay out a screen with a pinned top app bar and pull-to-refresh.
  *
- * The [content] items are stacked in a vertically scrolling column with 16 dp spacing. The back
+ * The [content] items are stacked in a vertically scrolling column with 12 dp spacing. The back
  * arrow is shown only when [onBack] is not null.
  *
  * @param title Text shown in the top app bar.
@@ -76,7 +76,7 @@ fun BudsScaffold(
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
                 content = content,
             )
         }

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="eq_presets">Presets</string>
     <string name="eq_custom_title">Custom equalizer</string>
     <string name="eq_reset">Reset</string>
     <string name="eq_preset_nature_balance">Nature balance</string>

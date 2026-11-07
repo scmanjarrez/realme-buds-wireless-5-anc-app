@@ -1,19 +1,29 @@
 package dev.openbuds.app.ui.screens
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Delete
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Link
+import androidx.compose.material.icons.outlined.LinkOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.openbuds.app.R
@@ -22,8 +32,10 @@ import dev.openbuds.app.data.PairedDevice
 import dev.openbuds.app.protocol.Feature
 import dev.openbuds.app.ui.BudsViewModel
 import dev.openbuds.app.ui.components.BudsScaffold
+import dev.openbuds.app.ui.components.InsetDivider
 import dev.openbuds.app.ui.components.SettingRow
 import dev.openbuds.app.ui.components.SettingsCard
+import dev.openbuds.app.ui.components.StatusDot
 import dev.openbuds.app.ui.components.SwitchRow
 
 /** Device action ids for the multi-connect command (0x040b). */
@@ -57,6 +69,11 @@ fun DualDeviceScreen(
 ) {
     var selected by remember { mutableStateOf<PairedDevice?>(null) }
     var pendingRemoval by remember { mutableStateOf<PairedDevice?>(null) }
+    val sheetState =
+        rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+        )
     val refreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     BudsScaffold(
@@ -65,16 +82,15 @@ fun DualDeviceScreen(
         refreshing = refreshing,
         onRefresh = viewModel::reload,
     ) {
-        Text(
-            text = stringResource(R.string.dual_description),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        SettingsCard(title = null) {
+        SettingsCard(
+            title = null,
+            description = stringResource(R.string.dual_description),
+        ) {
             SwitchRow(
                 title = stringResource(R.string.home_dual_device),
                 checked = buds.features[Feature.DUAL_CONNECTION] == true,
                 onCheckedChange = { viewModel.setFeature(Feature.DUAL_CONNECTION, it) },
+                icon = Icons.Outlined.Devices,
             )
         }
         SettingsCard(title = stringResource(R.string.dual_your_devices)) {
@@ -86,17 +102,24 @@ fun DualDeviceScreen(
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
-            buds.devices.forEach { device ->
+            buds.devices.forEachIndexed { index, device ->
+                if (index > 0) {
+                    InsetDivider()
+                }
                 if (device.isThisDevice) {
                     SettingRow(
                         title = device.name,
                         subtitle = deviceStateText(device),
+                        icon = Icons.Outlined.Devices,
+                        content = { StatusDot(color = deviceStatusColor(device)) },
                     )
                 } else {
                     SettingRow(
                         title = device.name,
                         subtitle = deviceStateText(device),
+                        icon = Icons.Outlined.Devices,
                         onClick = { selected = device },
+                        content = { StatusDot(color = deviceStatusColor(device)) },
                     )
                 }
             }
@@ -104,15 +127,20 @@ fun DualDeviceScreen(
     }
 
     selected?.let { device ->
-        ModalBottomSheet(onDismissRequest = { selected = null }) {
+        ModalBottomSheet(
+            onDismissRequest = { selected = null },
+            sheetState = sheetState,
+        ) {
             Text(
                 text = device.name,
                 style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             )
             if (device.state == STATE_CONNECTED) {
                 SettingRow(
                     title = stringResource(R.string.dual_disconnect),
+                    icon = Icons.Outlined.LinkOff,
                     onClick = {
                         viewModel.multiConnect(device.mac, ACTION_DISCONNECT)
                         selected = null
@@ -121,14 +149,23 @@ fun DualDeviceScreen(
             } else {
                 SettingRow(
                     title = stringResource(R.string.dual_connect),
+                    icon = Icons.Outlined.Link,
                     onClick = {
                         viewModel.multiConnect(device.mac, ACTION_CONNECT)
                         selected = null
                     },
                 )
             }
+            InsetDivider()
             SettingRow(
                 title = stringResource(R.string.dual_remove),
+                leading = {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                },
                 onClick = {
                     pendingRemoval = device
                     selected = null
@@ -168,4 +205,12 @@ private fun deviceStateText(device: PairedDevice): String =
         device.state == STATE_CONNECTED -> stringResource(R.string.dual_state_connected)
         device.state == STATE_CONNECTING -> stringResource(R.string.dual_state_connecting)
         else -> stringResource(R.string.dual_state_not_connected)
+    }
+
+@Composable
+private fun deviceStatusColor(device: PairedDevice): Color =
+    when {
+        device.isThisDevice || device.state == STATE_CONNECTED -> MaterialTheme.colorScheme.primary
+        device.state == STATE_CONNECTING -> MaterialTheme.colorScheme.tertiary
+        else -> MaterialTheme.colorScheme.outline
     }

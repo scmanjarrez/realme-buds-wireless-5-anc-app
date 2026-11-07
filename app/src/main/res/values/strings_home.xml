@@ -5,7 +5,7 @@
     <string name="home_firmware">Firmware %1$s</string>
     <string name="home_noise_control">Noise control</string>
     <string name="home_noise_anc">Noise cancellation</string>
-    <string name="home_noise_anc_short">Cancellation</string>
+    <string name="home_noise_anc_short">ANC</string>
     <string name="home_noise_off">Off</string>
     <string name="home_noise_transparency">Transparency</string>
     <string name="home_anc_smart">Smart</string>
@@ -29,4 +29,6 @@
     <string name="home_dual_device">Dual-device connection</string>
     <string name="home_button_settings">Button settings</string>
     <string name="home_auto_answer">Auto answer</string>
+    <string name="home_app">App</string>
+    <string name="home_state_on">On</string>
 </resources>

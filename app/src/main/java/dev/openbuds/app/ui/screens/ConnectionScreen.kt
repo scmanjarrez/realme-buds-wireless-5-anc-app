@@ -7,9 +7,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Bluetooth
-import androidx.compose.material.icons.rounded.BluetoothDisabled
-import androidx.compose.material.icons.rounded.Headphones
+import androidx.compose.material.icons.outlined.Bluetooth
+import androidx.compose.material.icons.outlined.BluetoothDisabled
+import androidx.compose.material.icons.outlined.Headphones
+import androidx.compose.material.icons.outlined.HeadsetOff
+import androidx.compose.material.icons.outlined.LinkOff
+import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import dev.openbuds.app.R
 import dev.openbuds.app.data.ConnectionState
 import dev.openbuds.app.ui.components.EmptyState
+import dev.openbuds.app.ui.components.InsetDivider
 import dev.openbuds.app.ui.components.NavRow
 import dev.openbuds.app.ui.components.SettingsCard
 
@@ -50,7 +55,7 @@ fun ConnectionScreen(
         when (state) {
             ConnectionState.NeedsPermission -> {
                 EmptyState(
-                    icon = Icons.Rounded.Bluetooth,
+                    icon = Icons.Outlined.Lock,
                     title = stringResource(R.string.connection_permission_title),
                     message = stringResource(R.string.connection_permission_message),
                     actionLabel = stringResource(R.string.connection_permission_action),
@@ -60,7 +65,7 @@ fun ConnectionScreen(
 
             ConnectionState.BluetoothOff -> {
                 EmptyState(
-                    icon = Icons.Rounded.BluetoothDisabled,
+                    icon = Icons.Outlined.BluetoothDisabled,
                     title = stringResource(R.string.connection_bluetooth_off_title),
                     message = stringResource(R.string.connection_bluetooth_off_message),
                     actionLabel = stringResource(R.string.connection_bluetooth_off_action),
@@ -70,7 +75,7 @@ fun ConnectionScreen(
 
             ConnectionState.NoDevices -> {
                 EmptyState(
-                    icon = Icons.Rounded.Headphones,
+                    icon = Icons.Outlined.HeadsetOff,
                     title = stringResource(R.string.connection_no_devices_title),
                     message = stringResource(R.string.connection_no_devices_message),
                     actionLabel = stringResource(R.string.connection_no_devices_action),
@@ -82,10 +87,16 @@ fun ConnectionScreen(
                 Column(
                     modifier = Modifier.fillMaxWidth().padding(16.dp),
                 ) {
-                    SettingsCard(title = stringResource(R.string.connection_choose_title)) {
-                        state.devices.forEach { device ->
+                    SettingsCard(
+                        title = stringResource(R.string.connection_choose_title),
+                        icon = Icons.Outlined.Bluetooth,
+                    ) {
+                        state.devices.forEachIndexed { index, device ->
+                            if (index > 0) InsetDivider()
                             NavRow(
                                 title = device.name.ifEmpty { stringResource(R.string.connection_unnamed_device) },
+                                subtitle = device.address,
+                                icon = Icons.Outlined.Headphones,
                                 onClick = { onSelect(device.address) },
                             )
                         }
@@ -95,7 +106,7 @@ fun ConnectionScreen(
 
             ConnectionState.Connecting, ConnectionState.Connected -> {
                 EmptyState(
-                    icon = Icons.Rounded.Bluetooth,
+                    icon = Icons.Outlined.Sync,
                     title = stringResource(R.string.connection_connecting_title),
                     message = stringResource(R.string.connection_connecting_message),
                     loading = true,
@@ -104,7 +115,7 @@ fun ConnectionScreen(
 
             ConnectionState.Disconnected -> {
                 EmptyState(
-                    icon = Icons.Rounded.Headphones,
+                    icon = Icons.Outlined.LinkOff,
                     title = stringResource(R.string.connection_disconnected_title),
                     message = stringResource(R.string.connection_disconnected_message),
                     actionLabel = stringResource(R.string.connection_disconnected_action),

@@ -2,32 +2,35 @@ package dev.openbuds.app.ui.screens
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Hearing
+import androidx.compose.material.icons.outlined.NoiseAware
+import androidx.compose.material.icons.outlined.NoiseControlOff
+import androidx.compose.material.icons.outlined.TouchApp
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.openbuds.app.R
@@ -37,6 +40,7 @@ import dev.openbuds.app.protocol.CycleBit
 import dev.openbuds.app.protocol.KeyFn
 import dev.openbuds.app.ui.BudsViewModel
 import dev.openbuds.app.ui.components.BudsScaffold
+import dev.openbuds.app.ui.components.InsetDivider
 import dev.openbuds.app.ui.components.NavRow
 import dev.openbuds.app.ui.components.SettingRow
 import dev.openbuds.app.ui.components.SettingsCard
@@ -66,6 +70,7 @@ private data class FunctionOption(
 private data class CycleOption(
     val bit: Int,
     @param:StringRes val label: Int,
+    val icon: ImageVector,
 )
 
 private val functionOptions =
@@ -84,9 +89,9 @@ private val gestureOptions = functionOptions.filter { it.fn != KeyFn.NOISE_CONTR
 
 private val cycleOptions =
     listOf(
-        CycleOption(CycleBit.NOISE_CANCELLATION, R.string.home_noise_anc),
-        CycleOption(CycleBit.OFF, R.string.home_noise_off),
-        CycleOption(CycleBit.TRANSPARENCY, R.string.home_noise_transparency),
+        CycleOption(CycleBit.NOISE_CANCELLATION, R.string.home_noise_anc, Icons.Outlined.NoiseAware),
+        CycleOption(CycleBit.OFF, R.string.home_noise_off, Icons.Outlined.NoiseControlOff),
+        CycleOption(CycleBit.TRANSPARENCY, R.string.home_noise_transparency, Icons.Outlined.Hearing),
     )
 
 private fun functionLabel(fn: Int?): Int? = functionOptions.firstOrNull { it.fn == fn }?.label
@@ -112,7 +117,11 @@ fun ButtonsScreen(
     onBack: () -> Unit,
 ) {
     var openGesture by remember { mutableStateOf<Gesture?>(null) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val sheetState =
+        rememberBottomSheetState(
+            initialValue = SheetValue.Hidden,
+            enabledValues = setOf(SheetValue.Hidden, SheetValue.Expanded),
+        )
     val refreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
 
     BudsScaffold(
@@ -121,27 +130,31 @@ fun ButtonsScreen(
         refreshing = refreshing,
         onRefresh = viewModel::reload,
     ) {
-        SettingsCard(title = stringResource(R.string.buttons_earbud_controls)) {
-            Gesture.entries.forEach { gesture ->
+        SettingsCard(
+            title = stringResource(R.string.buttons_earbud_controls),
+            icon = Icons.Outlined.TouchApp,
+        ) {
+            Gesture.entries.forEachIndexed { index, gesture ->
+                if (index > 0) InsetDivider()
                 val fn = buds.keys[BudsApi.keyId(EARBUD_BUTTON, gesture.action)]
                 NavRow(
                     title = stringResource(gesture.label),
-                    value = functionLabel(fn)?.let { stringResource(it) },
+                    subtitle = functionLabel(fn)?.let { stringResource(it) },
+                    icon = Icons.Outlined.TouchApp,
                     onClick = { openGesture = gesture },
                 )
             }
         }
 
-        SettingsCard(title = stringResource(R.string.buttons_noise_title)) {
-            Text(
-                text = stringResource(R.string.buttons_noise_hint),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            )
+        SettingsCard(
+            title = stringResource(R.string.buttons_noise_title),
+            icon = Icons.Outlined.NoiseAware,
+            description = stringResource(R.string.buttons_noise_hint),
+        ) {
             val mask = buds.noiseCycle ?: 0
             val locked = mask.countOneBits() == MIN_CYCLE_MODES
-            cycleOptions.forEach { option ->
+            cycleOptions.forEachIndexed { index, option ->
+                if (index > 0) InsetDivider()
                 val checked = (mask and option.bit) != 0
                 val enabled = !(locked && checked)
                 val toggle: () -> Unit = {
@@ -152,6 +165,7 @@ fun ButtonsScreen(
                 }
                 SettingRow(
                     title = stringResource(option.label),
+                    icon = option.icon,
                     onClick = if (enabled) toggle else null,
                     content = {
                         Checkbox(checked = checked, onCheckedChange = null, enabled = enabled)
@@ -175,33 +189,28 @@ fun ButtonsScreen(
             ) {
                 Text(
                     text = stringResource(gesture.label),
-                    style = MaterialTheme.typography.titleLarge,
-                    modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                 )
-                gestureOptions.forEach { option ->
+                gestureOptions.forEachIndexed { index, option ->
+                    if (index > 0) InsetDivider()
                     val selected = current == option.fn
-                    Row(
+                    SettingRow(
+                        title = stringResource(option.label),
                         modifier =
-                            Modifier
-                                .fillMaxWidth()
-                                .heightIn(min = 56.dp)
-                                .selectable(
-                                    selected = selected,
-                                    role = Role.RadioButton,
-                                    onClick = {
-                                        viewModel.setKey(EARBUD_BUTTON, gesture.action, option.fn)
-                                        openGesture = null
-                                    },
-                                ).padding(horizontal = 24.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = selected, onClick = null)
-                        Spacer(Modifier.width(16.dp))
-                        Text(
-                            text = stringResource(option.label),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
+                            Modifier.selectable(
+                                selected = selected,
+                                role = Role.RadioButton,
+                                onClick = {
+                                    viewModel.setKey(EARBUD_BUTTON, gesture.action, option.fn)
+                                    openGesture = null
+                                },
+                            ),
+                        leading = {
+                            RadioButton(selected = selected, onClick = null)
+                        },
+                    )
                 }
                 Spacer(Modifier.height(24.dp))
             }

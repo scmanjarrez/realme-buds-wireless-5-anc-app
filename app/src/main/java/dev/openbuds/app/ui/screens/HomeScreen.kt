@@ -5,27 +5,40 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.BatteryFull
+import androidx.compose.material.icons.automirrored.outlined.VolumeUp
+import androidx.compose.material.icons.outlined.Air
+import androidx.compose.material.icons.outlined.AutoAwesome
+import androidx.compose.material.icons.outlined.Devices
+import androidx.compose.material.icons.outlined.Earbuds
+import androidx.compose.material.icons.outlined.Equalizer
+import androidx.compose.material.icons.outlined.GraphicEq
+import androidx.compose.material.icons.outlined.Hearing
+import androidx.compose.material.icons.outlined.NoiseAware
+import androidx.compose.material.icons.outlined.NoiseControlOff
+import androidx.compose.material.icons.outlined.Palette
+import androidx.compose.material.icons.outlined.PhoneInTalk
+import androidx.compose.material.icons.outlined.PhonelinkRing
+import androidx.compose.material.icons.outlined.RecordVoiceOver
+import androidx.compose.material.icons.outlined.SpatialAudio
+import androidx.compose.material.icons.outlined.SportsEsports
+import androidx.compose.material.icons.outlined.TouchApp
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -37,10 +50,16 @@ import dev.openbuds.app.protocol.Noise
 import dev.openbuds.app.ui.BudsViewModel
 import dev.openbuds.app.ui.Routes
 import dev.openbuds.app.ui.components.BudsScaffold
+import dev.openbuds.app.ui.components.DeviceStatusCard
+import dev.openbuds.app.ui.components.InsetDivider
 import dev.openbuds.app.ui.components.LabeledSlider
 import dev.openbuds.app.ui.components.NavRow
+import dev.openbuds.app.ui.components.NoiseModeOption
+import dev.openbuds.app.ui.components.NoiseModeSelector
 import dev.openbuds.app.ui.components.SettingsCard
 import dev.openbuds.app.ui.components.SwitchRow
+import dev.openbuds.app.ui.components.ThemeDialog
+import dev.openbuds.app.ui.theme.ThemeMode
 
 /**
  * Active EQ id of the custom equalizer, as reported by the earbuds. Wire value 0x04.
@@ -91,48 +110,15 @@ fun HomeScreen(
         refreshing = refreshing,
         onRefresh = viewModel::reload,
     ) {
-        Header(buds = buds)
+        DeviceStatusCard(
+            name = stringResource(R.string.home_title),
+            battery = buds.battery,
+            firmware = buds.firmware,
+        )
         NoiseCard(buds = buds, viewModel = viewModel)
         SoundCard(buds = buds, viewModel = viewModel, onNavigate = onNavigate)
         OtherCard(buds = buds, viewModel = viewModel, onNavigate = onNavigate)
-    }
-}
-
-@Composable
-private fun Header(buds: BudsState) {
-    val battery = buds.battery
-    val firmware = buds.firmware
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(R.string.home_title),
-            style = MaterialTheme.typography.headlineSmall,
-        )
-        if (battery != null || firmware != null) {
-            Row(
-                modifier = Modifier.padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (battery != null) {
-                    Icon(
-                        imageVector = Icons.Rounded.BatteryFull,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Text(
-                        text = stringResource(R.string.home_battery, battery),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                }
-                if (firmware != null) {
-                    Text(
-                        text = stringResource(R.string.home_firmware, firmware),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
+        AppCard(viewModel = viewModel)
     }
 }
 
@@ -158,38 +144,31 @@ private fun NoiseCard(
     }
 
     val selected = segmentOf(noise)
-    val segments =
+    val options =
         listOf(
-            NoiseSegment.ANC to R.string.home_noise_anc_short,
-            NoiseSegment.OFF to R.string.home_noise_off,
-            NoiseSegment.TRANSPARENCY to R.string.home_noise_transparency,
+            NoiseModeOption(NoiseSegment.ANC, R.string.home_noise_anc_short, Icons.Outlined.NoiseAware),
+            NoiseModeOption(NoiseSegment.OFF, R.string.home_noise_off, Icons.Outlined.NoiseControlOff),
+            NoiseModeOption(NoiseSegment.TRANSPARENCY, R.string.home_noise_transparency, Icons.Outlined.Hearing),
         )
 
-    SettingsCard(title = stringResource(R.string.home_noise_control)) {
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
-            segments.forEachIndexed { index, (segment, labelRes) ->
-                SegmentedButton(
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = segments.size),
-                    selected = selected == segment,
-                    onClick = {
-                        if (selected != segment) {
-                            when (segment) {
-                                NoiseSegment.ANC -> viewModel.setNoiseMode(ancLevel)
-                                NoiseSegment.OFF -> viewModel.setNoiseMode(Noise.NORMAL)
-                                NoiseSegment.TRANSPARENCY -> viewModel.setNoiseMode(Noise.TRANSPARENT)
-                            }
-                        }
-                    },
-                    label = {
-                        Text(
-                            text = stringResource(labelRes),
-                            maxLines = 1,
-                            softWrap = false,
-                        )
-                    },
-                )
-            }
-        }
+    SettingsCard(
+        title = stringResource(R.string.home_noise_control),
+        icon = Icons.Outlined.NoiseAware,
+    ) {
+        NoiseModeSelector(
+            options = options,
+            selected = selected,
+            onSelect = { segment ->
+                if (selected != segment) {
+                    when (segment) {
+                        NoiseSegment.ANC -> viewModel.setNoiseMode(ancLevel)
+                        NoiseSegment.OFF -> viewModel.setNoiseMode(Noise.NORMAL)
+                        NoiseSegment.TRANSPARENCY -> viewModel.setNoiseMode(Noise.TRANSPARENT)
+                    }
+                }
+            },
+            modifier = Modifier.padding(horizontal = 16.dp).padding(top = 4.dp),
+        )
 
         AnimatedVisibility(visible = selected == NoiseSegment.ANC) {
             FlowRow(
@@ -210,20 +189,28 @@ private fun NoiseCard(
         }
 
         AnimatedVisibility(visible = noise == Noise.TRANSPARENT) {
-            FeatureSwitchRow(
-                title = stringResource(R.string.home_enhance_voices),
-                featureId = Feature.ENHANCE_VOICES,
-                buds = buds,
-                viewModel = viewModel,
-            )
+            Column {
+                InsetDivider()
+                FeatureSwitchRow(
+                    title = stringResource(R.string.home_enhance_voices),
+                    icon = Icons.Outlined.RecordVoiceOver,
+                    featureId = Feature.ENHANCE_VOICES,
+                    buds = buds,
+                    viewModel = viewModel,
+                )
+            }
         }
         AnimatedVisibility(visible = noise != null && noise != Noise.NORMAL) {
-            FeatureSwitchRow(
-                title = stringResource(R.string.home_smart_dewind),
-                featureId = Feature.SMART_DEWIND,
-                buds = buds,
-                viewModel = viewModel,
-            )
+            Column {
+                InsetDivider()
+                FeatureSwitchRow(
+                    title = stringResource(R.string.home_smart_dewind),
+                    icon = Icons.Outlined.Air,
+                    featureId = Feature.SMART_DEWIND,
+                    buds = buds,
+                    viewModel = viewModel,
+                )
+            }
         }
     }
 }
@@ -237,26 +224,35 @@ private fun SoundCard(
     val eqLabel = eqPresetLabel(buds.eq)
     val dynamicOn = buds.features[Feature.DYNAMIC_AUDIO] ?: false
 
-    SettingsCard(title = stringResource(R.string.home_sound)) {
+    SettingsCard(
+        title = stringResource(R.string.home_sound),
+        icon = Icons.Outlined.GraphicEq,
+    ) {
         NavRow(
             title = stringResource(R.string.home_eq_mode),
-            value = eqLabel?.let { stringResource(it) },
+            subtitle = eqLabel?.let { stringResource(it) },
+            icon = Icons.Outlined.Equalizer,
             onClick = { onNavigate(Routes.EQ) },
         )
+        InsetDivider()
         FeatureSwitchRow(
             title = stringResource(R.string.home_spatial_audio),
+            icon = Icons.Outlined.SpatialAudio,
             featureId = Feature.SPATIAL_AUDIO,
             buds = buds,
             viewModel = viewModel,
         )
+        InsetDivider()
         FeatureSwitchRow(
             title = stringResource(R.string.home_dynamic_audio),
+            icon = Icons.Outlined.AutoAwesome,
             featureId = Feature.DYNAMIC_AUDIO,
             buds = buds,
             viewModel = viewModel,
         )
         AnimatedVisibility(visible = dynamicOn) {
             Column {
+                InsetDivider()
                 DYNAMIC_SLIDERS.forEach { (type, labelRes) ->
                     LabeledSlider(
                         title = stringResource(labelRes),
@@ -267,8 +263,10 @@ private fun SoundCard(
                 }
             }
         }
+        InsetDivider()
         SwitchRow(
             title = stringResource(R.string.home_volume_enhancer),
+            icon = Icons.AutoMirrored.Outlined.VolumeUp,
             checked = buds.volumeEnhancer ?: false,
             onCheckedChange = { viewModel.setHighVolume(it) },
         )
@@ -281,31 +279,50 @@ private fun OtherCard(
     viewModel: BudsViewModel,
     onNavigate: (String) -> Unit,
 ) {
-    SettingsCard(title = stringResource(R.string.home_other)) {
+    val findPhoneState = buds.features[Feature.FIND_MY_PHONE]?.let { stringResource(stateLabelOf(it)) }
+    val dualState = buds.features[Feature.DUAL_CONNECTION]?.let { stringResource(stateLabelOf(it)) }
+
+    SettingsCard(
+        title = stringResource(R.string.home_other),
+        icon = Icons.Outlined.Tune,
+    ) {
         FeatureSwitchRow(
             title = stringResource(R.string.home_game_mode),
+            icon = Icons.Outlined.SportsEsports,
             featureId = Feature.GAME_MODE,
             buds = buds,
             viewModel = viewModel,
         )
+        InsetDivider()
         NavRow(
             title = stringResource(R.string.home_fit_test),
+            icon = Icons.Outlined.Earbuds,
             onClick = { onNavigate(Routes.FIT) },
         )
+        InsetDivider()
         NavRow(
             title = stringResource(R.string.home_find_my_phone),
+            subtitle = findPhoneState,
+            icon = Icons.Outlined.PhonelinkRing,
             onClick = { onNavigate(Routes.FIND_PHONE) },
         )
+        InsetDivider()
         NavRow(
             title = stringResource(R.string.home_dual_device),
+            subtitle = dualState,
+            icon = Icons.Outlined.Devices,
             onClick = { onNavigate(Routes.DUAL) },
         )
+        InsetDivider()
         NavRow(
             title = stringResource(R.string.home_button_settings),
+            icon = Icons.Outlined.TouchApp,
             onClick = { onNavigate(Routes.BUTTONS) },
         )
+        InsetDivider()
         FeatureSwitchRow(
             title = stringResource(R.string.home_auto_answer),
+            icon = Icons.Outlined.PhoneInTalk,
             featureId = Feature.AUTO_ANSWER,
             buds = buds,
             viewModel = viewModel,
@@ -313,15 +330,50 @@ private fun OtherCard(
     }
 }
 
+/**
+ * Show the app settings card with the theme selector.
+ *
+ * Tapping the theme row opens [ThemeDialog]; the choice is applied and persisted by the view model.
+ *
+ * @param viewModel provides the current theme mode and receives the selected one
+ */
+@Composable
+private fun AppCard(viewModel: BudsViewModel) {
+    val mode by viewModel.themeMode.collectAsStateWithLifecycle()
+    var showDialog by remember { mutableStateOf(false) }
+
+    SettingsCard(
+        title = stringResource(R.string.home_app),
+        icon = Icons.Outlined.Palette,
+    ) {
+        NavRow(
+            title = stringResource(R.string.theme_title),
+            subtitle = stringResource(themeLabelOf(mode)),
+            icon = Icons.Outlined.Palette,
+            onClick = { showDialog = true },
+        )
+    }
+
+    if (showDialog) {
+        ThemeDialog(
+            current = mode,
+            onSelect = viewModel::setThemeMode,
+            onDismiss = { showDialog = false },
+        )
+    }
+}
+
 @Composable
 private fun FeatureSwitchRow(
     title: String,
+    icon: ImageVector,
     featureId: Int,
     buds: BudsState,
     viewModel: BudsViewModel,
 ) {
     SwitchRow(
         title = title,
+        icon = icon,
         checked = buds.features[featureId] ?: false,
         onCheckedChange = { viewModel.setFeature(featureId, it) },
     )
@@ -336,4 +388,15 @@ private fun eqPresetLabel(preset: Int?): Int? =
         Eq.CLEAR_BASS -> R.string.eq_preset_clear_bass
         EQ_CUSTOM -> R.string.eq_preset_custom
         else -> null
+    }
+
+/** Return the On/Off label for a feature state. */
+private fun stateLabelOf(on: Boolean): Int = if (on) R.string.home_state_on else R.string.home_noise_off
+
+/** Return the label for theme [mode]. */
+private fun themeLabelOf(mode: ThemeMode): Int =
+    when (mode) {
+        ThemeMode.SYSTEM -> R.string.theme_system
+        ThemeMode.LIGHT -> R.string.theme_light
+        ThemeMode.DARK -> R.string.theme_dark
     }

@@ -2,12 +2,11 @@ package dev.openbuds.app.ui.screens
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.material3.MaterialTheme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Equalizer
+import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,7 +29,9 @@ import dev.openbuds.app.protocol.Eq
 import dev.openbuds.app.protocol.Protocol
 import dev.openbuds.app.ui.BudsViewModel
 import dev.openbuds.app.ui.components.BudsScaffold
+import dev.openbuds.app.ui.components.InsetDivider
 import dev.openbuds.app.ui.components.LabeledSlider
+import dev.openbuds.app.ui.components.SettingRow
 import dev.openbuds.app.ui.components.SettingsCard
 import kotlinx.coroutines.delay
 import kotlin.time.Duration.Companion.milliseconds
@@ -98,27 +99,34 @@ fun EqScreen(
         refreshing = refreshing,
         onRefresh = viewModel::reload,
     ) {
-        SettingsCard(title = null) {
+        SettingsCard(
+            title = stringResource(R.string.eq_presets),
+            icon = Icons.Outlined.Equalizer,
+        ) {
             EqPresetRow(
                 title = stringResource(R.string.eq_preset_nature_balance),
                 selected = buds.eq == Eq.NATURE_BALANCE,
                 onClick = { viewModel.setEq(Eq.NATURE_BALANCE) },
             )
+            InsetDivider()
             EqPresetRow(
                 title = stringResource(R.string.eq_preset_bass_boost),
                 selected = buds.eq == Eq.BASS_BOOST,
                 onClick = { viewModel.setEq(Eq.BASS_BOOST) },
             )
+            InsetDivider()
             EqPresetRow(
                 title = stringResource(R.string.eq_preset_clear_vocals),
                 selected = buds.eq == Eq.CLEAR_VOCALS,
                 onClick = { viewModel.setEq(Eq.CLEAR_VOCALS) },
             )
+            InsetDivider()
             EqPresetRow(
                 title = stringResource(R.string.eq_preset_clear_bass),
                 selected = buds.eq == Eq.CLEAR_BASS,
                 onClick = { viewModel.setEq(Eq.CLEAR_BASS) },
             )
+            InsetDivider()
             EqPresetRow(
                 title = stringResource(R.string.eq_preset_custom),
                 selected = buds.eq == EQ_CUSTOM,
@@ -127,7 +135,10 @@ fun EqScreen(
         }
 
         AnimatedVisibility(visible = buds.eq == EQ_CUSTOM) {
-            SettingsCard(title = stringResource(R.string.eq_custom_title)) {
+            SettingsCard(
+                title = stringResource(R.string.eq_custom_title),
+                icon = Icons.Outlined.Tune,
+            ) {
                 Protocol.EQ_FREQS.forEachIndexed { index, hz ->
                     LabeledSlider(
                         title =
@@ -164,27 +175,16 @@ fun EqScreen(
     }
 }
 
+/** One EQ preset as a radio-style row; the whole row is selectable with radio semantics. */
 @Composable
 private fun EqPresetRow(
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
 ) {
-    Row(
-        modifier =
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = 56.dp)
-                .selectable(selected = selected, onClick = onClick, role = Role.RadioButton)
-                .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f),
-        )
-        RadioButton(selected = selected, onClick = null)
-    }
+    SettingRow(
+        title = title,
+        modifier = Modifier.selectable(selected = selected, onClick = onClick, role = Role.RadioButton),
+        leading = { RadioButton(selected = selected, onClick = null) },
+    )
 }

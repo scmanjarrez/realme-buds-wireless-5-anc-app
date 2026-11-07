@@ -8,8 +8,8 @@ import androidx.compose.ui.graphics.Color
 /**
  * Light fallback color scheme for the OpenBuds Material 3 theme.
  *
- * Used by [OpenBudsTheme] when dynamic color is unavailable (Android below 12, API 31) or disabled,
- * and the app is not in dark mode. Token roles, grouped by Material 3 family:
+ * Used by [OpenBudsTheme] in [ThemeMode.Light], and in [ThemeMode.System] when dynamic color is
+ * unavailable (Android below 12, API 31). Token roles, grouped by Material 3 family:
  *
  * - Primary: [ColorScheme.primary] and its on/container pair. Main brand accent for filled
  *   buttons and selected states. [ColorScheme.inversePrimary] is the accent shown on inverse surfaces.
@@ -115,4 +115,27 @@ internal val FallbackDarkColorScheme: ColorScheme =
         surfaceContainer = Color(0xFF1F1F25),
         surfaceContainerHigh = Color(0xFF292A2F),
         surfaceContainerHighest = Color(0xFF34343A),
+    )
+
+/**
+ * Pure-black dark color scheme for the OpenBuds Material 3 theme.
+ *
+ * Derived from [FallbackDarkColorScheme]. Background and base surfaces are pure black so that
+ * OLED pixels stay off, and the container tiers sit just above black so cards remain distinct
+ * without lighting many pixels. Only the Dark theme mode uses this scheme; System and Light
+ * keep using the fallback schemes.
+ */
+internal val OledDarkColorScheme: ColorScheme =
+    FallbackDarkColorScheme.copy(
+        background = Color(0xFF000000),
+        surface = Color(0xFF000000),
+        surfaceDim = Color(0xFF000000),
+        surfaceContainerLowest = Color(0xFF000000),
+        surfaceContainerLow = Color(0xFF0C0C0E),
+        surfaceContainer = Color(0xFF141416),
+        surfaceContainerHigh = Color(0xFF1C1C1F),
+        surfaceContainerHighest = Color(0xFF26262A),
+        surfaceBright = Color(0xFF2C2C30),
+        surfaceVariant = Color(0xFF26262A),
+        outlineVariant = Color(0xFF2E2E33),
     )

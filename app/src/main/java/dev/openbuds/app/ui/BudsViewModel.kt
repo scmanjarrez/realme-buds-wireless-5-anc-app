@@ -15,6 +15,7 @@ import dev.openbuds.app.protocol.FitStatus
 import dev.openbuds.app.protocol.KeyFn
 import dev.openbuds.app.protocol.Protocol
 import dev.openbuds.app.service.BudsService
+import dev.openbuds.app.ui.theme.ThemeMode
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -64,9 +65,13 @@ class BudsViewModel(
     private val _fitTest = MutableStateFlow<FitTestUiState>(FitTestUiState.Idle)
     private var fitTimeoutJob: Job? = null
     private val phoneRinger = (application as OpenBudsApp).phoneRinger
+    private val themePreferences = (application as OpenBudsApp).themePreferences
 
     /** Connection lifecycle and the last state read from the earbuds. */
     val uiState: StateFlow<BudsUiState> = repository.state
+
+    /** The selected app theme mode, persisted across app starts. */
+    val themeMode: StateFlow<ThemeMode> = themePreferences.mode
 
     /** True while [reload] runs; drives the pull-to-refresh indicator. */
     val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
@@ -315,6 +320,15 @@ class BudsViewModel(
      */
     fun toggleTestRing() {
         phoneRinger.toggle()
+    }
+
+    /**
+     * Selects the app theme mode and persists it.
+     *
+     * @param mode the theme mode to apply and store
+     */
+    fun setThemeMode(mode: ThemeMode) {
+        themePreferences.setMode(mode)
     }
 
     private fun bandFreqs(buds: BudsState?): List<Int> =

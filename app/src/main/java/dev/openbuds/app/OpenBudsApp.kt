@@ -3,6 +3,7 @@ package dev.openbuds.app
 import android.app.Application
 import dev.openbuds.app.data.BudsRepository
 import dev.openbuds.app.service.PhoneRinger
+import dev.openbuds.app.ui.theme.ThemePreferences
 
 /**
  * Process-wide owner of the earbuds connection and the phone ringer.
@@ -16,4 +17,7 @@ class OpenBudsApp : Application() {
 
     /** Shared phone ringer used by the "find my phone" feature, created on first access. */
     val phoneRinger: PhoneRinger by lazy { PhoneRinger(this) }
+
+    /** Shared theme mode preference, read from and written to local storage on first access. */
+    val themePreferences: ThemePreferences by lazy { ThemePreferences(this) }
 }
